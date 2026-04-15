@@ -14,8 +14,10 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
+      const stored = localStorage.getItem('usuario')
+      const rol = stored ? JSON.parse(stored).rol : null
       localStorage.clear()
-      window.location.href = '/login'
+      window.location.href = rol === 'profesora' ? '/admin' : '/login'
     }
     return Promise.reject(err)
   }
