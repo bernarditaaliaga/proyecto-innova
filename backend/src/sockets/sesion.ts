@@ -71,6 +71,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     const salaId = plan.rows[0]?.sala_id
 
     if (salaId) {
+      socket.join(`sala:${salaId}`) // profesora se une a la sala para recibir respuestas
       io.to(`sala:${salaId}`).emit('sesion:iniciada', { sesionId: sesion.id })
       socket.emit('sesion:creada', sesion)
     }
@@ -175,9 +176,13 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
        JSON.stringify(data.contenido), data.esCorrecta, puntosObtenidos, data.tiempoSegundos]
     )
 
-    // Obtener nombre del alumno para notificar a la profesora
+    // Obtener nombre del alumno y sala para notificar a la profesora
     const alumno = await db.query(
-      'SELECT nombre, apellido, sala_id FROM alumnos WHERE id = $1',
+      `SELECT a.nombre, a.apellido, als.sala_id
+       FROM alumnos a
+       LEFT JOIN alumno_salas als ON als.alumno_id = a.id
+       WHERE a.id = $1
+       LIMIT 1`,
       [data.alumnoId]
     )
     const a = alumno.rows[0]
