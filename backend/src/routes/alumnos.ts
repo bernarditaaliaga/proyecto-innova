@@ -5,14 +5,55 @@ import { verificarToken, soloProfesor, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
-// Crear alumno
-router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { nombre, apellido, username, password, salaId, emailApoderado } = req.body
+// Buscar alumnos por nombre o username (para añadir a sala)
+router.get('/buscar', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { q } = req.query
+  if (!q || String(q).length < 2) {
+    res.json([])
+    return
+  }
+  const resultado = await db.query(
+    `SELECT id, nombre, apellido, username FROM alumnos
+     WHERE nombre ILIKE $1 OR apellido ILIKE $1 OR username ILIKE $1
+     ORDER BY apellido, nombre LIMIT 10`,
+    [`%${q}%`]
+  )
+  res.json(resultado.rows)
+})
 
-  if (!nombre || !apellido || !username || !password || !salaId) {
+// Crear alumno nuevo (sin sala, se añade luego)
+router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { nombre, apellido, username, password, emailApoderado, salaId } = req.body
+
+  if (!nombre || !apellido || !username || !password) {
     res.status(400).json({ error: 'Faltan campos obligatorios' })
     return
   }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  const resultado = await db.query(
+    `INSERT INTO alumnos (nombre, apellido, username, password_hash, email_apoderado)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, nombre, apellido, username, email_apoderado`,
+    [nombre, apellido, username, passwordHash, emailApoderado || null]
+  )
+  const alumno = resultado.rows[0]
+
+  // Si se especificó sala, añadirlo directamente
+  if (salaId) {
+    await db.query(
+      'INSERT INTO alumno_salas (alumno_id, sala_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [alumno.id, salaId]
+    )
+  }
+
+  res.status(201).json(alumno)
+})
+
+// Añadir alumno existente a una sala
+router.post('/:alumnoId/salas/:salaId', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { alumnoId, salaId } = req.params
 
   // Verificar que la sala pertenece a esta profesora
   const sala = await db.query(
@@ -24,21 +65,25 @@ router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Res
     return
   }
 
-  const passwordHash = await bcrypt.hash(password, 10)
-
-  const resultado = await db.query(
-    `INSERT INTO alumnos (nombre, apellido, username, password_hash, sala_id, email_apoderado)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, nombre, apellido, username, sala_id, email_apoderado, creado_en`,
-    [nombre, apellido, username, passwordHash, salaId, emailApoderado || null]
+  await db.query(
+    'INSERT INTO alumno_salas (alumno_id, sala_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [alumnoId, salaId]
   )
-  res.status(201).json(resultado.rows[0])
+  res.json({ ok: true })
+})
+
+// Quitar alumno de una sala
+router.delete('/:alumnoId/salas/:salaId', verificarToken, soloProfesor, async (_req: AuthRequest, res: Response): Promise<void> => {
+  await db.query(
+    'DELETE FROM alumno_salas WHERE alumno_id = $1 AND sala_id = $2',
+    [_req.params.alumnoId, _req.params.salaId]
+  )
+  res.json({ ok: true })
 })
 
 // Editar alumno
 router.put('/:id', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const { nombre, apellido, emailApoderado, password } = req.body
-
   let query = `UPDATE alumnos SET nombre = $1, apellido = $2, email_apoderado = $3`
   const params: (string | number | null)[] = [nombre, apellido, emailApoderado || null]
 
@@ -53,12 +98,6 @@ router.put('/:id', verificarToken, soloProfesor, async (req: AuthRequest, res: R
 
   const resultado = await db.query(query, params)
   res.json(resultado.rows[0])
-})
-
-// Eliminar alumno
-router.delete('/:id', verificarToken, soloProfesor, async (_req: AuthRequest, res: Response): Promise<void> => {
-  await db.query('DELETE FROM alumnos WHERE id = $1', [_req.params.id])
-  res.json({ ok: true })
 })
 
 export default router

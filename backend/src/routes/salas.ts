@@ -7,9 +7,9 @@ const router = Router()
 // Obtener salas de la profesora
 router.get('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const resultado = await db.query(
-    `SELECT s.*, COUNT(a.id) AS total_alumnos
+    `SELECT s.*, COUNT(als.alumno_id) AS total_alumnos
      FROM salas s
-     LEFT JOIN alumnos a ON a.sala_id = s.id
+     LEFT JOIN alumno_salas als ON als.sala_id = s.id
      WHERE s.profesora_id = $1
      GROUP BY s.id
      ORDER BY s.nombre`,
@@ -25,7 +25,6 @@ router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Res
     res.status(400).json({ error: 'Nombre y código requeridos' })
     return
   }
-
   const resultado = await db.query(
     'INSERT INTO salas (nombre, codigo, profesora_id) VALUES ($1, $2, $3) RETURNING *',
     [nombre, codigo, req.usuario!.id]
@@ -33,11 +32,14 @@ router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Res
   res.status(201).json(resultado.rows[0])
 })
 
-// Obtener alumnos de una sala
+// Obtener alumnos de una sala (via alumno_salas)
 router.get('/:id/alumnos', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const resultado = await db.query(
-    `SELECT id, nombre, apellido, username, email_apoderado, creado_en
-     FROM alumnos WHERE sala_id = $1 ORDER BY apellido, nombre`,
+    `SELECT a.id, a.nombre, a.apellido, a.username, a.email_apoderado, a.creado_en
+     FROM alumnos a
+     JOIN alumno_salas als ON als.alumno_id = a.id
+     WHERE als.sala_id = $1
+     ORDER BY a.apellido, a.nombre`,
     [req.params.id]
   )
   res.json(resultado.rows)
