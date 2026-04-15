@@ -4,6 +4,13 @@ import { Server } from 'socket.io'
 import cors from 'cors'
 import dotenv from 'dotenv'
 
+import authRoutes from './routes/auth'
+import salasRoutes from './routes/salas'
+import alumnosRoutes from './routes/alumnos'
+import materiasRoutes from './routes/materias'
+import planificacionesRoutes from './routes/planificaciones'
+import { registrarEventosSesion } from './sockets/sesion'
+
 dotenv.config()
 
 const app = express()
@@ -19,33 +26,25 @@ const io = new Server(server, {
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }))
 app.use(express.json())
 
-// Ruta de prueba
+// Rutas
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', mensaje: 'Servidor funcionando' })
+  res.json({ status: 'ok', app: 'AprendIA' })
 })
 
-// Socket.io — sincronización en tiempo real
+app.use('/api/auth', authRoutes)
+app.use('/api/salas', salasRoutes)
+app.use('/api/alumnos', alumnosRoutes)
+app.use('/api/materias', materiasRoutes)
+app.use('/api/planificaciones', planificacionesRoutes)
+
+// Socket.io
 io.on('connection', (socket) => {
-  console.log(`Cliente conectado: ${socket.id}`)
-
-  // El alumno se une a su sala
-  socket.on('unirse_sala', (idSala: string) => {
-    socket.join(idSala)
-    console.log(`Socket ${socket.id} se unió a sala: ${idSala}`)
-  })
-
-  // La profesora envía un comando a toda la sala
-  socket.on('comando_profesora', (data: { idSala: string; comando: unknown }) => {
-    io.to(data.idSala).emit('comando', data.comando)
-    console.log(`Comando enviado a sala ${data.idSala}:`, data.comando)
-  })
-
-  socket.on('disconnect', () => {
-    console.log(`Cliente desconectado: ${socket.id}`)
-  })
+  console.log(`Conectado: ${socket.id}`)
+  registrarEventosSesion(io, socket)
+  socket.on('disconnect', () => console.log(`Desconectado: ${socket.id}`))
 })
 
 const PORT = process.env.PORT || 3001
 server.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`)
+  console.log(`AprendIA backend corriendo en http://localhost:${PORT}`)
 })
