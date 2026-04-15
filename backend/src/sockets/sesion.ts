@@ -124,6 +124,22 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
        JSON.stringify(data.contenido), data.esCorrecta, puntosObtenidos, data.tiempoSegundos]
     )
 
+    // Obtener nombre del alumno para notificar a la profesora
+    const alumno = await db.query(
+      'SELECT nombre, apellido, sala_id FROM alumnos WHERE id = $1',
+      [data.alumnoId]
+    )
+    const a = alumno.rows[0]
+    if (a) {
+      io.to(`sala:${a.sala_id}`).emit('respuesta:alumno', {
+        alumnoId: data.alumnoId,
+        nombre: `${a.nombre} ${a.apellido}`,
+        respondio: true,
+        esCorrecta: data.esCorrecta,
+        puntos: puntosObtenidos
+      })
+    }
+
     socket.emit('respuesta:confirmada', { puntosObtenidos })
   })
 
