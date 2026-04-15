@@ -27,6 +27,26 @@ export default function Aula() {
     socket.emit('alumno:unirse', { salaId: usuario.salaId, alumnoId: usuario.id })
 
     socket.on('sesion:esperando', () => setEstado('esperando'))
+
+    socket.on('sesion:estado', (data: {
+      sesionId: number
+      ejercicio?: Ejercicio
+      yaRespondio?: boolean
+      puntosYaObtenidos?: number
+    }) => {
+      setSesionId(data.sesionId)
+      if (data.ejercicio && !data.yaRespondio) {
+        setEjercicio(data.ejercicio)
+        setEstado('ejercicio')
+        setTiempoInicio(Date.now())
+        const blancos = (data.ejercicio.contenido.tokens || []).filter(t => t.esBlanco).length
+        setRespuestasBlancos(Array(blancos).fill(''))
+      } else if (data.yaRespondio) {
+        setPuntosObtenidos(data.puntosYaObtenidos ?? 0)
+        setEstado('respondido')
+      }
+    })
+
     socket.on('sesion:iniciada', (data: { sesionId: number }) => {
       setSesionId(data.sesionId)
       setPuntosTotal(0)
@@ -63,6 +83,7 @@ export default function Aula() {
 
     return () => {
       socket.off('sesion:esperando')
+      socket.off('sesion:estado')
       socket.off('sesion:iniciada')
       socket.off('ejercicio:nuevo')
       socket.off('ejercicio:cerrado')

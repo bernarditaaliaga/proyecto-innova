@@ -22,7 +22,35 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     )
 
     if (sesion.rows.length > 0) {
-      socket.emit('sesion:estado', sesion.rows[0])
+      const row = sesion.rows[0]
+
+      if (row.ejercicio_activo_id && row.tipo) {
+        // Buscar variante personalizada del alumno
+        const variante = await db.query(
+          'SELECT contenido FROM variantes_ejercicio WHERE ejercicio_id = $1 AND alumno_id = $2',
+          [row.ejercicio_activo_id, data.alumnoId]
+        )
+        // Verificar si ya respondió
+        const yaRespondio = await db.query(
+          'SELECT puntos_obtenidos FROM respuestas WHERE alumno_id = $1 AND ejercicio_id = $2 AND sesion_id = $3',
+          [data.alumnoId, row.ejercicio_activo_id, row.id]
+        )
+
+        socket.emit('sesion:estado', {
+          sesionId: row.id,
+          ejercicio: {
+            id: row.ejercicio_activo_id,
+            titulo: row.titulo,
+            tipo: row.tipo,
+            puntos: row.puntos,
+            contenido: variante.rows[0]?.contenido || row.contenido
+          },
+          yaRespondio: yaRespondio.rows.length > 0,
+          puntosYaObtenidos: yaRespondio.rows[0]?.puntos_obtenidos ?? 0
+        })
+      } else {
+        socket.emit('sesion:estado', { sesionId: row.id })
+      }
     } else {
       socket.emit('sesion:esperando')
     }
