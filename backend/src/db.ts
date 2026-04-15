@@ -3,7 +3,10 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
+const url = process.env.DATABASE_URL || ''
+
 export const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: url,
+  // Conexiones internas de Railway no usan SSL, externas sí
+  ssl: url.includes('railway.internal') ? false : { rejectUnauthorized: false }
 })
