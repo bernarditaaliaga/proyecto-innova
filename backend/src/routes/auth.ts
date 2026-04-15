@@ -45,10 +45,13 @@ router.post('/alumno', async (req: Request, res: Response): Promise<void> => {
   }
 
   const resultado = await db.query(
-    `SELECT a.id, a.nombre, a.apellido, a.username, a.password_hash, a.sala_id, s.nombre AS sala
+    `SELECT a.id, a.nombre, a.apellido, a.username, a.password_hash,
+            als.sala_id, s.nombre AS sala
      FROM alumnos a
-     LEFT JOIN salas s ON s.id = a.sala_id
-     WHERE a.username = $1`,
+     LEFT JOIN alumno_salas als ON als.alumno_id = a.id
+     LEFT JOIN salas s ON s.id = als.sala_id
+     WHERE a.username = $1
+     LIMIT 1`,
     [username]
   )
   const alumno = resultado.rows[0]

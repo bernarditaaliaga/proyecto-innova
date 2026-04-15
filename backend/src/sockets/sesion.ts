@@ -103,7 +103,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
 
     // Obtener todos los alumnos de la sala
     const alumnos = await db.query(
-      'SELECT id FROM alumnos WHERE sala_id = $1',
+      'SELECT alumno_id AS id FROM alumno_salas WHERE sala_id = $1',
       [data.salaId]
     )
 
