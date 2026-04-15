@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io'
 import { db } from '../db'
+import { generarVariantesEjercicio } from '../routes/ia'
 
 export function registrarEventosSesion(io: Server, socket: Socket) {
 
@@ -94,29 +95,51 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
       [data.ejercicioId, data.sesionId]
     )
 
-    // Obtener variantes de cada alumno (si las hay)
-    const variantes = await db.query(
-      'SELECT alumno_id, contenido FROM variantes_ejercicio WHERE ejercicio_id = $1',
-      [data.ejercicioId]
-    )
-    const variantesPorAlumno = new Map(variantes.rows.map(v => [v.alumno_id, v.contenido]))
-
     // Obtener todos los alumnos de la sala
     const alumnos = await db.query(
       'SELECT alumno_id AS id FROM alumno_salas WHERE sala_id = $1',
       [data.salaId]
     )
 
+    const ej = ejercicio.rows[0]
+    const variantesPorAlumno = new Map<number, Record<string, unknown>>()
+
+    // Generar variantes con IA si está activado
+    if (ej.generar_variantes && alumnos.rows.length > 0) {
+      const CANT = 5
+      const tipos = ['matematica_desarrollo', 'seleccion_multiple', 'completar_texto']
+      if (tipos.includes(ej.tipo)) {
+        try {
+          const variantes = await generarVariantesEjercicio(ej.tipo, ej.contenido, CANT)
+          if (variantes.length > 0) {
+            for (let i = 0; i < alumnos.rows.length; i++) {
+              const alumnoId = alumnos.rows[i].id
+              const variante = variantes[i % variantes.length]
+              variantesPorAlumno.set(alumnoId, variante)
+              await db.query(
+                `INSERT INTO variantes_ejercicio (alumno_id, ejercicio_id, contenido)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (alumno_id, ejercicio_id) DO UPDATE SET contenido = EXCLUDED.contenido`,
+                [alumnoId, data.ejercicioId, JSON.stringify(variante)]
+              )
+            }
+          }
+        } catch (e) {
+          console.error('Error generando variantes IA:', e)
+        }
+      }
+    }
+
     // Enviar a cada alumno su versión (variante o base)
     for (const alumno of alumnos.rows) {
       const variante = variantesPorAlumno.get(alumno.id)
-      const contenido = variante || ejercicio.rows[0].contenido
+      const contenido = variante || ej.contenido
 
       io.to(`alumno:${alumno.id}`).emit('ejercicio:nuevo', {
-        id: ejercicio.rows[0].id,
-        titulo: ejercicio.rows[0].titulo,
-        tipo: ejercicio.rows[0].tipo,
-        puntos: ejercicio.rows[0].puntos,
+        id: ej.id,
+        titulo: ej.titulo,
+        tipo: ej.tipo,
+        puntos: ej.puntos,
         contenido
       })
     }
