@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
-import Login from './pages/Login'
+import LoginAlumno from './pages/LoginAlumno'
+import LoginAdmin from './pages/LoginAdmin'
 import Dashboard from './pages/profesora/Dashboard'
 import Salas from './pages/profesora/Salas'
 import Aula from './pages/alumno/Aula'
@@ -11,7 +12,11 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          {/* /login → solo alumnos (va en los tablets) */}
+          <Route path="/login" element={<LoginAlumno />} />
+
+          {/* /admin → solo profesoras (URL secreta) */}
+          <Route path="/admin" element={<LoginAdmin />} />
 
           {/* Profesora */}
           <Route path="/profesora" element={
