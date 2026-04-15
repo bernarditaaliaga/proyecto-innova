@@ -78,4 +78,34 @@ router.post('/alumno', async (req: Request, res: Response): Promise<void> => {
   })
 })
 
+// Registro profesora (solo accesible desde /admin)
+router.post('/registro-profesora', async (req: Request, res: Response): Promise<void> => {
+  const { nombre, email, password, codigoRegistro } = req.body
+
+  // Código secreto para evitar registros no autorizados
+  if (codigoRegistro !== process.env.CODIGO_REGISTRO_PROFESORA) {
+    res.status(403).json({ error: 'Código de registro incorrecto' })
+    return
+  }
+
+  if (!nombre || !email || !password) {
+    res.status(400).json({ error: 'Todos los campos son requeridos' })
+    return
+  }
+
+  const existe = await db.query('SELECT id FROM profesoras WHERE email = $1', [email])
+  if (existe.rows.length > 0) {
+    res.status(400).json({ error: 'Ya existe una cuenta con ese email' })
+    return
+  }
+
+  const hash = await bcrypt.hash(password, 10)
+  const resultado = await db.query(
+    'INSERT INTO profesoras (nombre, email, password_hash) VALUES ($1, $2, $3) RETURNING id, nombre, email',
+    [nombre, email, hash]
+  )
+
+  res.status(201).json({ ok: true, profesora: resultado.rows[0] })
+})
+
 export default router
