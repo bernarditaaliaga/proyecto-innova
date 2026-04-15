@@ -9,6 +9,7 @@ import Planificaciones from './pages/profesora/Planificaciones'
 import EditarPlan from './pages/profesora/EditarPlan'
 import Sesion from './pages/profesora/Sesion'
 import Metricas from './pages/profesora/Metricas'
+import Materias from './pages/profesora/Materias'
 import Aula from './pages/alumno/Aula'
 
 export default function App() {
@@ -40,6 +41,9 @@ export default function App() {
           } />
           <Route path="/profesora/metricas" element={
             <ProtectedRoute rol="profesora"><Metricas /></ProtectedRoute>
+          } />
+          <Route path="/profesora/materias" element={
+            <ProtectedRoute rol="profesora"><Materias /></ProtectedRoute>
           } />
 
           {/* Alumno */}
