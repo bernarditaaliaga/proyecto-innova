@@ -10,6 +10,7 @@ export default function Planificaciones() {
   const [materias, setMaterias] = useState<Materia[]>([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+  const [temaIdsSeleccionados, setTemaIdsSeleccionados] = useState<number[]>([])
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
 
@@ -37,10 +38,12 @@ export default function Planificaciones() {
         titulo: form.titulo,
         salaId: Number(form.salaId),
         materiaId: Number(form.materiaId),
-        fecha: form.fecha || null
+        fecha: form.fecha || null,
+        temaIds: temaIdsSeleccionados
       })
       setModal(false)
       setForm({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+      setTemaIdsSeleccionados([])
       navigate(`/profesora/planificaciones/${data.id}`)
     } catch {
       setError('Error al crear planificación')
@@ -147,6 +150,38 @@ export default function Planificaciones() {
                 <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
               </div>
+
+              {/* Temas de la clase */}
+              {form.materiaId && (() => {
+                const temasMateria = materias.find(m => m.id === Number(form.materiaId))?.temas || []
+                return temasMateria.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">
+                      Temas que se verán en esta clase
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {temasMateria.map(t => {
+                        const sel = temaIdsSeleccionados.includes(t.id)
+                        return (
+                          <button key={t.id} type="button"
+                            onClick={() => setTemaIdsSeleccionados(ids =>
+                              sel ? ids.filter(i => i !== t.id) : [...ids, t.id]
+                            )}
+                            className="px-3 py-1.5 rounded-full text-sm font-medium border-2 cursor-pointer transition-all"
+                            style={{
+                              borderColor: sel ? 'var(--primary)' : '#e5e7eb',
+                              background: sel ? '#f0efff' : 'white',
+                              color: sel ? 'var(--primary)' : '#6b7280'
+                            }}>
+                            {t.nombre}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null
+              })()}
+
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button type="submit" disabled={cargando}
                 className="w-full py-3 rounded-xl font-bold text-white cursor-pointer"

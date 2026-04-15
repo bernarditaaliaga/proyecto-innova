@@ -9,6 +9,7 @@ import salasRoutes from './routes/salas'
 import alumnosRoutes from './routes/alumnos'
 import materiasRoutes from './routes/materias'
 import planificacionesRoutes from './routes/planificaciones'
+import iaRoutes from './routes/ia'
 import { registrarEventosSesion } from './sockets/sesion'
 
 dotenv.config()
@@ -36,6 +37,7 @@ app.use('/api/salas', salasRoutes)
 app.use('/api/alumnos', alumnosRoutes)
 app.use('/api/materias', materiasRoutes)
 app.use('/api/planificaciones', planificacionesRoutes)
+app.use('/api/ia', iaRoutes)
 
 // Socket.io
 io.on('connection', (socket) => {

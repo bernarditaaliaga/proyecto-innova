@@ -1,51 +1,41 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../lib/api'
-import type { Planificacion, Ejercicio, Materia } from '../../types'
+import type { Planificacion, Ejercicio, Materia, Tema } from '../../types'
+import FormSeleccionMultiple from '../../components/ejercicios/FormSeleccionMultiple'
+import FormMatematica from '../../components/ejercicios/FormMatematica'
+import FormCompletarTexto from '../../components/ejercicios/FormCompletarTexto'
 
-type TipoEjercicio = Ejercicio['tipo']
+type TipoEjercicio = Ejercicio['tipo'] | 'matematica_desarrollo'
 
-const TIPOS: { valor: TipoEjercicio; etiqueta: string; icono: string }[] = [
-  { valor: 'seleccion_multiple', etiqueta: 'Selección múltiple', icono: '☑️' },
-  { valor: 'completar_texto',    etiqueta: 'Completar texto',    icono: '✏️' },
-  { valor: 'dibujo',             etiqueta: 'Dibujo libre',       icono: '🎨' },
-  { valor: 'video_youtube',      etiqueta: 'Video YouTube',      icono: '▶️' },
-  { valor: 'mostrar_imagen',     etiqueta: 'Mostrar imagen',     icono: '🖼️' },
+const TIPOS: { valor: TipoEjercicio; etiqueta: string; icono: string; descripcion: string }[] = [
+  { valor: 'seleccion_multiple',  etiqueta: 'Selección múltiple', icono: '☑️', descripcion: 'Pregunta con alternativas (texto o imagen)' },
+  { valor: 'matematica_desarrollo', etiqueta: 'Matemática desarrollo', icono: '🔢', descripcion: 'Problema con respuesta + variantes IA' },
+  { valor: 'completar_texto',     etiqueta: 'Completar texto',    icono: '✏️', descripcion: 'Texto con palabras ocultas' },
+  { valor: 'dibujo',              etiqueta: 'Dibujo libre',       icono: '🎨', descripcion: 'El alumno dibuja la respuesta' },
+  { valor: 'video_youtube',       etiqueta: 'Video YouTube',      icono: '▶️', descripcion: 'Muestra un video de YouTube' },
+  { valor: 'mostrar_imagen',      etiqueta: 'Mostrar imagen',     icono: '🖼️', descripcion: 'Muestra una imagen a todos' },
 ]
-
-interface Opcion { texto: string; correcta: boolean }
 
 export default function EditarPlan() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [plan, setPlan] = useState<Planificacion | null>(null)
-  const [materias, setMaterias] = useState<Materia[]>([])
+  const [_materias, setMaterias] = useState<Materia[]>([])
   const [modal, setModal] = useState(false)
-  const [tipo, setTipo] = useState<TipoEjercicio>('seleccion_multiple')
-  const [paso, setPaso] = useState<'tipo' | 'form'>('tipo')
-  const [cargando, setCargando] = useState(false)
-  const [error, setError] = useState('')
-
-  // Campos del formulario
+  const [tipo, setTipo] = useState<TipoEjercicio | null>(null)
   const [titulo, setTitulo] = useState('')
   const [puntos, setPuntos] = useState(10)
   const [temaId, setTemaId] = useState('')
-  const [generarVariantes, setGenerarVariantes] = useState(false)
-  const [opciones, setOpciones] = useState<Opcion[]>([
-    { texto: '', correcta: false },
-    { texto: '', correcta: false },
-    { texto: '', correcta: false },
-    { texto: '', correcta: false },
-  ])
-  const [pregunta, setPregunta] = useState('')
-  const [textoBlancos, setTextoBlancos] = useState('')
+  const [cargando, setCargando] = useState(false)
+  const [error, setError] = useState('')
+
+  // Campos simples
   const [instruccion, setInstruccion] = useState('')
   const [urlVideo, setUrlVideo] = useState('')
   const [urlImagen, setUrlImagen] = useState('')
 
-  useEffect(() => {
-    cargar()
-  }, [id])
+  useEffect(() => { cargar() }, [id])
 
   async function cargar() {
     const [p, m] = await Promise.all([
@@ -58,56 +48,25 @@ export default function EditarPlan() {
 
   function abrirModal() {
     setModal(true)
-    setPaso('tipo')
+    setTipo(null)
     setTitulo('')
     setPuntos(10)
     setTemaId('')
-    setGenerarVariantes(false)
-    setPregunta('')
-    setTextoBlancos('')
     setInstruccion('')
     setUrlVideo('')
     setUrlImagen('')
-    setOpciones([
-      { texto: '', correcta: false },
-      { texto: '', correcta: false },
-      { texto: '', correcta: false },
-      { texto: '', correcta: false },
-    ])
     setError('')
   }
 
-  function construirContenido() {
-    switch (tipo) {
-      case 'seleccion_multiple':
-        return { pregunta, opciones }
-      case 'completar_texto':
-        return { texto_con_blancos: textoBlancos }
-      case 'dibujo':
-        return { instruccion }
-      case 'video_youtube':
-        return { url_video: urlVideo }
-      case 'mostrar_imagen':
-        return { url_imagen: urlImagen }
-    }
-  }
-
-  async function guardarEjercicio(e: React.FormEvent) {
-    e.preventDefault()
-    if (tipo === 'seleccion_multiple' && !opciones.some(o => o.correcta)) {
-      setError('Debes marcar al menos una opción como correcta')
-      return
-    }
-    setError('')
+  async function guardarConContenido(contenido: unknown, tipoFinal?: string) {
     setCargando(true)
     try {
       await api.post(`/api/planificaciones/${id}/ejercicios`, {
         titulo,
-        tipo,
-        contenido: construirContenido(),
+        tipo: tipoFinal || tipo,
+        contenido,
         puntos,
         temaId: temaId ? Number(temaId) : null,
-        generarVariantes,
         orden: plan?.ejercicios?.length || 0
       })
       setModal(false)
@@ -119,82 +78,100 @@ export default function EditarPlan() {
     }
   }
 
-  const temasDePlan = materias.find(m => m.id === plan?.materia_id)?.temas || []
+  async function handleSimple(e: React.FormEvent) {
+    e.preventDefault()
+    if (!titulo.trim()) { setError('Escribe el título'); return }
+    let contenido: unknown
+    if (tipo === 'dibujo') contenido = { instruccion }
+    else if (tipo === 'video_youtube') contenido = { url_video: urlVideo }
+    else if (tipo === 'mostrar_imagen') contenido = { url_imagen: urlImagen }
+    await guardarConContenido(contenido)
+  }
+
+  async function eliminarEjercicio(ejercicioId: number) {
+    await api.delete(`/api/planificaciones/${id}/ejercicios/${ejercicioId}`)
+    cargar()
+  }
+
+  const temasDelPlan: Tema[] = plan?.temas || []
 
   if (!plan) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-      <div className="text-gray-400">Cargando...</div>
+      <p className="text-gray-400">Cargando...</p>
     </div>
   )
+
+  const tipoInfo = TIPOS.find(t => t.valor === tipo)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <div className="px-6 py-4" style={{ background: 'var(--primary)' }}>
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex items-center gap-3">
           <button onClick={() => navigate('/profesora/planificaciones')} className="text-white cursor-pointer text-xl">←</button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-white">{plan.titulo}</h1>
-            <p className="text-purple-200 text-sm">{plan.sala} · {plan.materia}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-white truncate">{plan.titulo}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-purple-200 text-sm">{plan.sala} · {plan.materia}</p>
+              {temasDelPlan.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {temasDelPlan.map(t => (
+                    <span key={t.id} className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{t.nombre}</span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => navigate(`/profesora/sesion/${id}`)}
-            className="bg-green-400 hover:bg-green-300 text-white font-bold px-4 py-2 rounded-xl text-sm cursor-pointer">
+          <button onClick={() => navigate(`/profesora/sesion/${id}`)}
+            className="bg-green-400 hover:bg-green-300 text-white font-bold px-4 py-2 rounded-xl text-sm cursor-pointer flex-shrink-0">
             ▶ Iniciar clase
           </button>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto p-6">
-        {/* Botón agregar */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
-            Ejercicios ({plan.ejercicios?.length || 0})
+            Contenido de la clase ({plan.ejercicios?.length || 0} elementos)
           </h2>
           <button onClick={abrirModal}
             className="px-4 py-2 rounded-xl text-white font-semibold text-sm cursor-pointer"
             style={{ background: 'var(--primary)' }}>
-            + Agregar ejercicio
+            + Añadir
           </button>
         </div>
 
-        {/* Lista de ejercicios */}
         {!plan.ejercicios?.length ? (
           <div className="bg-white rounded-2xl p-10 text-center shadow-sm">
             <div className="text-4xl mb-3">📝</div>
-            <p className="text-gray-500">Aún no hay ejercicios en esta planificación.</p>
+            <p className="text-gray-500 mb-4">Esta clase no tiene contenido aún.</p>
             <button onClick={abrirModal}
-              className="mt-4 px-5 py-2 rounded-xl text-white font-semibold cursor-pointer text-sm"
+              className="px-5 py-2 rounded-xl text-white font-semibold cursor-pointer text-sm"
               style={{ background: 'var(--primary)' }}>
-              Agregar primer ejercicio
+              Añadir primer elemento
             </button>
           </div>
         ) : (
           <div className="space-y-3">
             {plan.ejercicios.map((ej, i) => {
-              const tipoInfo = TIPOS.find(t => t.valor === ej.tipo)
+              const t = TIPOS.find(t => t.valor === ej.tipo) || TIPOS.find(t => t.valor === 'seleccion_multiple')!
               return (
-                <div key={ej.id} className="bg-white rounded-xl px-5 py-4 shadow-sm flex items-center gap-4">
-                  <span className="text-2xl">{tipoInfo?.icono}</span>
-                  <div className="flex-1">
-                    <p className="font-semibold" style={{ color: 'var(--text)' }}>
+                <div key={ej.id} className="bg-white rounded-xl px-5 py-4 shadow-sm flex items-center gap-3">
+                  <span className="text-xl flex-shrink-0">{t.icono}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate" style={{ color: 'var(--text)' }}>
                       {i + 1}. {ej.titulo}
                     </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-400">{tipoInfo?.etiqueta}</span>
-                      {ej.tema && (
-                        <span className="text-xs text-gray-400">· {ej.tema}</span>
-                      )}
-                      {ej.generar_variantes && (
-                        <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">
-                          🤖 IA variantes
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-xs text-gray-400">{t.etiqueta}</span>
+                      {ej.tema && <span className="text-xs text-purple-500">· {ej.tema}</span>}
                     </div>
                   </div>
-                  <span className="font-bold text-sm" style={{ color: 'var(--primary)' }}>
-                    {ej.puntos} pts
+                  <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                    {ej.puntos}pts
                   </span>
+                  <button onClick={() => eliminarEjercicio(ej.id)}
+                    className="text-gray-300 hover:text-red-400 cursor-pointer text-xl flex-shrink-0">×</button>
                 </div>
               )
             })}
@@ -206,152 +183,125 @@ export default function EditarPlan() {
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl my-4">
-            <div className="flex items-center justify-between p-6 pb-4">
-              <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
-                {paso === 'tipo' ? 'Tipo de ejercicio' : 'Configurar ejercicio'}
-              </h3>
+
+            {/* Cabecera modal */}
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                {tipo && (
+                  <button onClick={() => setTipo(null)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-sm">←</button>
+                )}
+                <h3 className="font-bold" style={{ color: 'var(--text)' }}>
+                  {tipo ? `${tipoInfo?.icono} ${tipoInfo?.etiqueta}` : 'Añadir a la clase'}
+                </h3>
+              </div>
               <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl">×</button>
             </div>
 
-            {paso === 'tipo' ? (
-              <div className="px-6 pb-6 grid grid-cols-2 gap-3">
-                {TIPOS.map(t => (
-                  <button key={t.valor}
-                    onClick={() => { setTipo(t.valor); setPaso('form') }}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-100 hover:border-purple-300 hover:bg-purple-50 transition-all cursor-pointer">
-                    <span className="text-3xl">{t.icono}</span>
-                    <span className="text-sm font-semibold text-gray-700 text-center">{t.etiqueta}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <form onSubmit={guardarEjercicio} className="px-6 pb-6 space-y-4">
-                {/* Campos comunes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Título del ejercicio</label>
-                  <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} required
-                    placeholder="ej: Suma de fracciones"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
-                </div>
-
+            <div className="p-5">
+              {/* Selección de tipo */}
+              {!tipo && (
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Puntos</label>
-                    <input type="number" min={1} max={100} value={puntos} onChange={e => setPuntos(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
-                  </div>
-                  {temasDePlan.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Tema</label>
-                      <select value={temaId} onChange={e => setTemaId(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
-                        <option value="">Sin tema</option>
-                        {temasDePlan.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                      </select>
-                    </div>
-                  )}
+                  {TIPOS.map(t => (
+                    <button key={t.valor} onClick={() => setTipo(t.valor)}
+                      className="flex flex-col items-start gap-1 p-4 rounded-xl border-2 border-gray-100 hover:border-purple-300 hover:bg-purple-50 transition-all cursor-pointer text-left">
+                      <span className="text-2xl">{t.icono}</span>
+                      <span className="text-sm font-bold text-gray-700">{t.etiqueta}</span>
+                      <span className="text-xs text-gray-400">{t.descripcion}</span>
+                    </button>
+                  ))}
                 </div>
+              )}
 
-                {/* Campos según tipo */}
-                {tipo === 'seleccion_multiple' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Pregunta</label>
-                      <textarea value={pregunta} onChange={e => setPregunta(e.target.value)} rows={2} required
-                        placeholder="ej: ¿Cuánto es 3/4 + 1/4?"
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 resize-none" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">
-                        Opciones <span className="text-gray-400 font-normal">(marca la correcta)</span>
-                      </label>
-                      <div className="space-y-2">
-                        {opciones.map((op, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <button type="button"
-                              onClick={() => setOpciones(ops => ops.map((o, j) => ({ ...o, correcta: j === i })))}
-                              className={`w-6 h-6 rounded-full border-2 flex-shrink-0 cursor-pointer transition-all ${
-                                op.correcta ? 'bg-green-500 border-green-500' : 'border-gray-300'
-                              }`} />
-                            <input type="text" value={op.texto} required
-                              onChange={e => setOpciones(ops => ops.map((o, j) => j === i ? { ...o, texto: e.target.value } : o))}
-                              placeholder={`Opción ${String.fromCharCode(65 + i)}`}
-                              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 text-sm" />
-                          </div>
-                        ))}
+              {/* Campos comunes (título, puntos, tema) */}
+              {tipo && (
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Título del elemento</label>
+                    <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} required
+                      placeholder="ej: Suma de fracciones"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tipo !== 'video_youtube' && tipo !== 'mostrar_imagen' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Puntos</label>
+                        <input type="number" min={1} max={100} value={puntos}
+                          onChange={e => setPuntos(Number(e.target.value))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
                       </div>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={generarVariantes} onChange={e => setGenerarVariantes(e.target.checked)}
-                        className="w-4 h-4 accent-purple-600" />
-                      <span className="text-sm text-gray-600">🤖 Generar variantes con IA (cada alumno recibe una versión diferente)</span>
-                    </label>
-                  </>
-                )}
-
-                {tipo === 'completar_texto' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        Texto o instrucción
-                      </label>
-                      <textarea value={textoBlancos} onChange={e => setTextoBlancos(e.target.value)} rows={3} required
-                        placeholder="ej: Completa la oración: El sol sale por el ___"
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 resize-none" />
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={generarVariantes} onChange={e => setGenerarVariantes(e.target.checked)}
-                        className="w-4 h-4 accent-purple-600" />
-                      <span className="text-sm text-gray-600">🤖 Generar variantes con IA</span>
-                    </label>
-                  </>
-                )}
-
-                {tipo === 'dibujo' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Instrucción para el alumno</label>
-                    <input type="text" value={instruccion} onChange={e => setInstruccion(e.target.value)} required
-                      placeholder="ej: Dibuja el ciclo del agua"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
-                  </div>
-                )}
-
-                {tipo === 'video_youtube' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Link de YouTube</label>
-                    <input type="url" value={urlVideo} onChange={e => setUrlVideo(e.target.value)} required
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
-                  </div>
-                )}
-
-                {tipo === 'mostrar_imagen' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">URL de la imagen</label>
-                    <input type="url" value={urlImagen} onChange={e => setUrlImagen(e.target.value)} required
-                      placeholder="https://..."
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
-                    {urlImagen && (
-                      <img src={urlImagen} alt="preview" className="mt-2 rounded-lg max-h-32 object-contain w-full border" />
+                    )}
+                    {temasDelPlan.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Tema</label>
+                        <select value={temaId} onChange={e => setTemaId(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                          <option value="">Sin tema</option>
+                          {temasDelPlan.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                        </select>
+                      </div>
                     )}
                   </div>
-                )}
+                  <hr className="border-gray-100" />
+                </div>
+              )}
 
-                {error && <p className="text-red-500 text-sm">{error}</p>}
+              {/* Formulario según tipo */}
+              {tipo === 'seleccion_multiple' && (
+                <FormSeleccionMultiple
+                  onGuardar={datos => guardarConContenido(datos)}
+                  cargando={cargando} />
+              )}
 
-                <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setPaso('tipo')}
-                    className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold cursor-pointer hover:bg-gray-50">
-                    ← Cambiar tipo
-                  </button>
+              {tipo === 'matematica_desarrollo' && (
+                <FormMatematica
+                  onGuardar={datos => guardarConContenido(datos, 'matematica_desarrollo')}
+                  cargando={cargando} />
+              )}
+
+              {tipo === 'completar_texto' && (
+                <FormCompletarTexto
+                  onGuardar={datos => guardarConContenido(datos)}
+                  cargando={cargando} />
+              )}
+
+              {(tipo === 'dibujo' || tipo === 'video_youtube' || tipo === 'mostrar_imagen') && (
+                <form onSubmit={handleSimple} className="space-y-4">
+                  {tipo === 'dibujo' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Instrucción para el alumno</label>
+                      <input type="text" value={instruccion} onChange={e => setInstruccion(e.target.value)} required
+                        placeholder="ej: Dibuja el ciclo del agua"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    </div>
+                  )}
+                  {tipo === 'video_youtube' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Link de YouTube</label>
+                      <input type="url" value={urlVideo} onChange={e => setUrlVideo(e.target.value)} required
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    </div>
+                  )}
+                  {tipo === 'mostrar_imagen' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">URL de la imagen</label>
+                      <input type="url" value={urlImagen} onChange={e => setUrlImagen(e.target.value)} required
+                        placeholder="https://..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      {urlImagen && (
+                        <img src={urlImagen} alt="preview" className="mt-2 rounded-lg max-h-32 object-contain w-full border" />
+                      )}
+                    </div>
+                  )}
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
                   <button type="submit" disabled={cargando}
-                    className="flex-1 py-3 rounded-xl font-bold text-white cursor-pointer"
+                    className="w-full py-3 rounded-xl font-bold text-white cursor-pointer"
                     style={{ background: cargando ? '#a29bfe' : 'var(--primary)' }}>
                     {cargando ? 'Guardando...' : 'Guardar'}
                   </button>
-                </div>
-              </form>
-            )}
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -21,10 +21,10 @@ router.get('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Resp
   res.json(resultado.rows)
 })
 
-// Obtener planificación con sus ejercicios
+// Obtener planificación con ejercicios y temas
 router.get('/:id', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const plan = await db.query(
-    `SELECT p.*, s.nombre AS sala, m.nombre AS materia
+    `SELECT p.*, s.nombre AS sala, s.id AS sala_id, m.nombre AS materia, m.id AS materia_id
      FROM planificaciones p
      JOIN salas s ON s.id = p.sala_id
      JOIN materias m ON m.id = p.materia_id
@@ -45,12 +45,19 @@ router.get('/:id', verificarToken, soloProfesor, async (req: AuthRequest, res: R
     [req.params.id]
   )
 
-  res.json({ ...plan.rows[0], ejercicios: ejercicios.rows })
+  const temas = await db.query(
+    `SELECT t.* FROM temas t
+     JOIN planificacion_temas pt ON pt.tema_id = t.id
+     WHERE pt.planificacion_id = $1`,
+    [req.params.id]
+  )
+
+  res.json({ ...plan.rows[0], ejercicios: ejercicios.rows, temas: temas.rows })
 })
 
-// Crear planificación
+// Crear planificación con temas
 router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { titulo, salaId, materiaId, fecha } = req.body
+  const { titulo, salaId, materiaId, fecha, temaIds } = req.body
   if (!titulo || !salaId || !materiaId) {
     res.status(400).json({ error: 'Faltan campos obligatorios' })
     return
@@ -61,12 +68,24 @@ router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Res
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
     [titulo, req.usuario!.id, salaId, materiaId, fecha || null]
   )
-  res.status(201).json(resultado.rows[0])
+  const plan = resultado.rows[0]
+
+  // Guardar temas de la planificación
+  if (temaIds && temaIds.length > 0) {
+    for (const temaId of temaIds) {
+      await db.query(
+        'INSERT INTO planificacion_temas (planificacion_id, tema_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [plan.id, temaId]
+      )
+    }
+  }
+
+  res.status(201).json(plan)
 })
 
 // Agregar ejercicio a planificación
 router.post('/:id/ejercicios', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { titulo, tipo, contenido, puntos, temaId, generarVariantes, orden } = req.body
+  const { titulo, tipo, contenido, puntos, temaId, orden } = req.body
 
   if (!titulo || !tipo || !contenido) {
     res.status(400).json({ error: 'Faltan campos obligatorios' })
@@ -74,12 +93,17 @@ router.post('/:id/ejercicios', verificarToken, soloProfesor, async (req: AuthReq
   }
 
   const resultado = await db.query(
-    `INSERT INTO ejercicios (planificacion_id, tema_id, titulo, tipo, contenido, puntos, generar_variantes, orden)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [req.params.id, temaId || null, titulo, tipo, JSON.stringify(contenido),
-     puntos || 10, generarVariantes || false, orden || 0]
+    `INSERT INTO ejercicios (planificacion_id, tema_id, titulo, tipo, contenido, puntos, orden)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [req.params.id, temaId || null, titulo, tipo, JSON.stringify(contenido), puntos || 10, orden || 0]
   )
   res.status(201).json(resultado.rows[0])
+})
+
+// Eliminar ejercicio
+router.delete('/:id/ejercicios/:ejercicioId', verificarToken, soloProfesor, async (_req: AuthRequest, res: Response): Promise<void> => {
+  await db.query('DELETE FROM ejercicios WHERE id = $1', [_req.params.ejercicioId])
+  res.json({ ok: true })
 })
 
 export default router

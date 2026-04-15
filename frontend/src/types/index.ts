@@ -50,12 +50,13 @@ export interface Planificacion {
   fecha: string
   total_ejercicios: number
   ejercicios?: Ejercicio[]
+  temas?: Tema[]
 }
 
 export interface Ejercicio {
   id: number
   titulo: string
-  tipo: 'seleccion_multiple' | 'completar_texto' | 'dibujo' | 'video_youtube' | 'mostrar_imagen'
+  tipo: 'seleccion_multiple' | 'matematica_desarrollo' | 'completar_texto' | 'dibujo' | 'video_youtube' | 'mostrar_imagen'
   contenido: ContenidoEjercicio
   puntos: number
   tema?: string
