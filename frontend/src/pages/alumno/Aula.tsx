@@ -18,7 +18,6 @@ export default function Aula() {
   const [tiempoInicio, setTiempoInicio] = useState<number>(0)
   const [respuestaMatematica, setRespuestaMatematica] = useState('')
   const [respuestasBlancos, setRespuestasBlancos] = useState<string[]>([])
-  const [textoLibre, setTextoLibre] = useState('')
   const canvasRef = useRef<{ getImagen: () => string } | null>(null)
 
   useEffect(() => {
@@ -97,11 +96,6 @@ export default function Aula() {
     const correcta = String(ejercicio.contenido.respuesta_correcta || '').trim().toLowerCase()
     const dada = respuestaMatematica.trim().toLowerCase()
     enviarRespuesta({ respuesta: respuestaMatematica }, dada === correcta)
-  }
-
-  function handleTexto() {
-    if (!textoLibre.trim() || !ejercicio) return
-    enviarRespuesta({ texto: textoLibre }, true)
   }
 
   function handleBlancos() {

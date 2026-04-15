@@ -69,6 +69,9 @@ export interface ContenidoEjercicio {
   pregunta?: string
   opciones?: { texto: string; correcta: boolean }[]
   texto_con_blancos?: string
+  tokens?: { texto: string; esBlanco: boolean }[]
+  enunciado?: string
+  respuesta_correcta?: string | number
   url_video?: string
   url_imagen?: string
   instruccion?: string
