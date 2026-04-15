@@ -6,6 +6,7 @@ import LoginAdmin from './pages/LoginAdmin'
 import Dashboard from './pages/profesora/Dashboard'
 import Salas from './pages/profesora/Salas'
 import Planificaciones from './pages/profesora/Planificaciones'
+import EditarPlan from './pages/profesora/EditarPlan'
 import Metricas from './pages/profesora/Metricas'
 import Aula from './pages/alumno/Aula'
 
@@ -29,6 +30,9 @@ export default function App() {
           } />
           <Route path="/profesora/planificaciones" element={
             <ProtectedRoute rol="profesora"><Planificaciones /></ProtectedRoute>
+          } />
+          <Route path="/profesora/planificaciones/:id" element={
+            <ProtectedRoute rol="profesora"><EditarPlan /></ProtectedRoute>
           } />
           <Route path="/profesora/metricas" element={
             <ProtectedRoute rol="profesora"><Metricas /></ProtectedRoute>
