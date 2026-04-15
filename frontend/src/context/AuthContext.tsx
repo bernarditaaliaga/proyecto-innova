@@ -26,9 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    const destino = usuario?.rol === 'profesora' ? '/admin' : '/login'
     localStorage.clear()
     setToken(null)
     setUsuario(null)
+    window.location.href = destino
   }
 
   return (

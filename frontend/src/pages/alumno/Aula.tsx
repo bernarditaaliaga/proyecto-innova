@@ -13,8 +13,11 @@ export default function Aula() {
   const [ejercicio, setEjercicio] = useState<Ejercicio | null>(null)
   const [sesionId, setSesionId] = useState<number | null>(null)
   const [respuesta, setRespuesta] = useState<string | number | null>(null)
+  const [fueCorrecta, setFueCorrecta] = useState<boolean>(true)
   const [puntosObtenidos, setPuntosObtenidos] = useState<number | null>(null)
   const [tiempoInicio, setTiempoInicio] = useState<number>(0)
+  const [respuestaMatematica, setRespuestaMatematica] = useState('')
+  const [respuestasBlancos, setRespuestasBlancos] = useState<string[]>([])
   const [textoLibre, setTextoLibre] = useState('')
   const canvasRef = useRef<{ getImagen: () => string } | null>(null)
 
@@ -32,7 +35,10 @@ export default function Aula() {
       setEjercicio(ej)
       setEstado('ejercicio')
       setRespuesta(null)
-      setTextoLibre('')
+      setFueCorrecta(true)
+      setRespuestaMatematica('')
+      const blancos = (ej.contenido.tokens || []).filter((t: { esBlanco: boolean }) => t.esBlanco).length
+      setRespuestasBlancos(Array(blancos).fill(''))
       setPuntosObtenidos(null)
       setTiempoInicio(Date.now())
     })
@@ -66,6 +72,7 @@ export default function Aula() {
   function enviarRespuesta(contenido: unknown, esCorrecta: boolean) {
     if (!socket || !ejercicio || !sesionId || !usuario) return
     const tiempoSegundos = Math.round((Date.now() - tiempoInicio) / 1000)
+    setFueCorrecta(esCorrecta)
 
     socket.emit('alumno:responder', {
       alumnoId: usuario.id,
@@ -85,9 +92,21 @@ export default function Aula() {
     enviarRespuesta({ opcionSeleccionada: idx, texto: opciones[idx]?.texto }, esCorrecta)
   }
 
+  function handleMatematica() {
+    if (!respuestaMatematica.trim() || !ejercicio) return
+    const correcta = String(ejercicio.contenido.respuesta_correcta || '').trim().toLowerCase()
+    const dada = respuestaMatematica.trim().toLowerCase()
+    enviarRespuesta({ respuesta: respuestaMatematica }, dada === correcta)
+  }
+
   function handleTexto() {
     if (!textoLibre.trim() || !ejercicio) return
     enviarRespuesta({ texto: textoLibre }, true)
+  }
+
+  function handleBlancos() {
+    if (!ejercicio) return
+    enviarRespuesta({ blancos: respuestasBlancos }, true)
   }
 
   function handleDibujo() {
@@ -129,9 +148,7 @@ export default function Aula() {
 
   // PANTALLA RESPONDIDO
   if (estado === 'respondido') {
-    const esCorrecta = ejercicio?.contenido.opciones && respuesta !== null
-      ? ejercicio.contenido.opciones[respuesta as number]?.correcta
-      : true
+    const esCorrecta = fueCorrecta
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center"
@@ -200,28 +217,68 @@ export default function Aula() {
             </div>
           )}
 
-          {/* Completar texto */}
-          {ejercicio.tipo === 'completar_texto' && (
+          {/* Matemática desarrollo */}
+          {ejercicio.tipo === 'matematica_desarrollo' && (
             <div className="space-y-4">
-              {ejercicio.contenido.texto_con_blancos && (
-                <p className="text-gray-600 text-center text-lg">
-                  {ejercicio.contenido.texto_con_blancos}
-                </p>
+              {ejercicio.contenido.enunciado && (
+                <div className="bg-purple-50 rounded-xl p-4">
+                  <p className="text-gray-700 text-lg leading-relaxed whitespace-pre-wrap">
+                    {ejercicio.contenido.enunciado}
+                  </p>
+                </div>
               )}
-              <textarea
-                value={textoLibre}
-                onChange={e => setTextoLibre(e.target.value)}
-                placeholder="Escribe tu respuesta aquí..."
-                rows={4}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 resize-none"
+              <input
+                type="text"
+                value={respuestaMatematica}
+                onChange={e => setRespuestaMatematica(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleMatematica() }}
+                placeholder="Escribe tu respuesta..."
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 text-center text-xl font-bold"
               />
-              <button onClick={handleTexto}
-                className="w-full py-3 rounded-xl font-bold text-white cursor-pointer"
+              <button onClick={handleMatematica}
+                disabled={!respuestaMatematica.trim()}
+                className="w-full py-3 rounded-xl font-bold text-white cursor-pointer disabled:opacity-40"
                 style={{ background: 'var(--primary)' }}>
                 Enviar respuesta
               </button>
             </div>
           )}
+
+          {/* Completar texto */}
+          {ejercicio.tipo === 'completar_texto' && (() => {
+            const tokens: { texto: string; esBlanco: boolean }[] = ejercicio.contenido.tokens || []
+            let blankIdx = -1
+            return (
+              <div className="space-y-4">
+                <div className="text-lg leading-relaxed text-gray-700 flex flex-wrap items-center gap-1">
+                  {tokens.map((token, i) => {
+                    if (!token.esBlanco) return <span key={i}>{token.texto}</span>
+                    blankIdx++
+                    const idx = blankIdx
+                    return (
+                      <input key={i}
+                        type="text"
+                        value={respuestasBlancos[idx] || ''}
+                        onChange={e => {
+                          const copia = [...respuestasBlancos]
+                          copia[idx] = e.target.value
+                          setRespuestasBlancos(copia)
+                        }}
+                        className="border-b-2 border-purple-400 focus:outline-none text-center font-bold text-purple-700 bg-transparent"
+                        style={{ width: `${Math.max(token.texto.length * 12, 60)}px` }}
+                      />
+                    )
+                  })}
+                </div>
+                <button onClick={handleBlancos}
+                  disabled={respuestasBlancos.some(b => !b.trim())}
+                  className="w-full py-3 rounded-xl font-bold text-white cursor-pointer disabled:opacity-40"
+                  style={{ background: 'var(--primary)' }}>
+                  Enviar respuesta
+                </button>
+              </div>
+            )
+          })()}
 
           {/* Dibujo */}
           {ejercicio.tipo === 'dibujo' && (
@@ -240,14 +297,18 @@ export default function Aula() {
 
           {/* Video YouTube */}
           {ejercicio.tipo === 'video_youtube' && ejercicio.contenido.url_video && (
-            <div>
-              <div className="aspect-video rounded-xl overflow-hidden">
-                <iframe
-                  src={ejercicio.contenido.url_video.replace('watch?v=', 'embed/')}
-                  className="w-full h-full"
-                  allowFullScreen
-                />
-              </div>
+            <div className="aspect-video rounded-xl overflow-hidden">
+              <iframe
+                src={(() => {
+                  const url = ejercicio.contenido.url_video!
+                  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?/]+)/)
+                  const id = match?.[1]
+                  return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : url
+                })()}
+                className="w-full h-full"
+                allow="autoplay"
+                allowFullScreen
+              />
             </div>
           )}
 
