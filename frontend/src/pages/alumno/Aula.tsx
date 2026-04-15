@@ -18,6 +18,7 @@ export default function Aula() {
   const [tiempoInicio, setTiempoInicio] = useState<number>(0)
   const [respuestaMatematica, setRespuestaMatematica] = useState('')
   const [respuestasBlancos, setRespuestasBlancos] = useState<string[]>([])
+  const [puntosTotal, setPuntosTotal] = useState(0)
   const canvasRef = useRef<{ getImagen: () => string } | null>(null)
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function Aula() {
     socket.on('sesion:esperando', () => setEstado('esperando'))
     socket.on('sesion:iniciada', (data: { sesionId: number }) => {
       setSesionId(data.sesionId)
+      setPuntosTotal(0)
     })
 
     socket.on('ejercicio:nuevo', (ej: Ejercicio) => {
@@ -55,6 +57,7 @@ export default function Aula() {
 
     socket.on('respuesta:confirmada', (data: { puntosObtenidos: number }) => {
       setPuntosObtenidos(data.puntosObtenidos)
+      setPuntosTotal(prev => prev + data.puntosObtenidos)
       setEstado('respondido')
     })
 
@@ -155,6 +158,9 @@ export default function Aula() {
           {puntosObtenidos !== null && puntosObtenidos > 0 && (
             <p className="text-2xl font-semibold opacity-90">+{puntosObtenidos} puntos</p>
           )}
+          <div className="mt-4 bg-white/20 rounded-2xl px-6 py-3 inline-block">
+            <p className="text-lg font-bold">⭐ Total: {puntosTotal} pts</p>
+          </div>
           <p className="mt-4 opacity-80 text-lg">Espera el siguiente ejercicio...</p>
         </div>
       </div>
@@ -172,7 +178,7 @@ export default function Aula() {
         <span className="text-white font-bold text-lg">🎓 AprendIA</span>
         <div className="text-right">
           <p className="text-white font-semibold">{usuario?.nombre}</p>
-          <p className="text-purple-200 text-sm">{ejercicio.puntos} pts</p>
+          <p className="text-yellow-300 text-sm font-bold">⭐ {puntosTotal} pts</p>
         </div>
       </div>
 
