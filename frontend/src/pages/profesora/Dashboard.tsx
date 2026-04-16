@@ -26,13 +26,6 @@ export default function Dashboard() {
       descripcion: 'Rendimiento de tus alumnos',
       ruta: '/profesora/metricas',
       color: '#FDCB6E'
-    },
-    {
-      icono: '🗂️',
-      titulo: 'Materias',
-      descripcion: 'Gestiona materias y temas',
-      ruta: '/profesora/materias',
-      color: '#e17055'
     }
   ]
 
