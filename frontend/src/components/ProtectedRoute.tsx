@@ -9,7 +9,7 @@ export default function ProtectedRoute({
 }) {
   const { usuario } = useAuth()
 
-  if (!usuario) return <Navigate to={rol === 'profesora' ? '/admin' : '/login'} replace />
+  if (!usuario) return <Navigate to="/" replace />
   if (rol && usuario.rol !== rol) {
     return <Navigate to={usuario.rol === 'profesora' ? '/profesora' : '/aula'} replace />
   }

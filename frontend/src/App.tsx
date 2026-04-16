@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import Landing from './pages/Landing'
 import LoginAlumno from './pages/LoginAlumno'
 import LoginAdmin from './pages/LoginAdmin'
 import Dashboard from './pages/profesora/Dashboard'
@@ -17,10 +18,13 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* /login → solo alumnos (va en los tablets) */}
+          {/* Landing → Soy Alumno / Soy Profesora */}
+          <Route path="/" element={<Landing />} />
+
+          {/* Login alumnos */}
           <Route path="/login" element={<LoginAlumno />} />
 
-          {/* /admin → solo profesoras (URL secreta) */}
+          {/* Login/registro profesoras */}
           <Route path="/admin" element={<LoginAdmin />} />
 
           {/* Profesora */}
@@ -51,7 +55,7 @@ export default function App() {
             <ProtectedRoute rol="alumno"><Aula /></ProtectedRoute>
           } />
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
