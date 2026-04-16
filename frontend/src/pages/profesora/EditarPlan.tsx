@@ -181,11 +181,11 @@ export default function EditarPlan() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl my-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl my-4 flex flex-col max-h-[90vh]">
 
-            {/* Cabecera modal */}
-            <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100">
+            {/* Cabecera modal — sticky */}
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
               <div className="flex items-center gap-2">
                 {tipo && (
                   <button onClick={() => setTipo(null)}
@@ -199,7 +199,7 @@ export default function EditarPlan() {
                 className="text-gray-400 hover:text-red-500 cursor-pointer text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition-all">×</button>
             </div>
 
-            <div className="p-5">
+            <div className="p-5 overflow-y-auto flex-1">
               {/* Selección de tipo */}
               {!tipo && (
                 <div className="grid grid-cols-2 gap-3">
