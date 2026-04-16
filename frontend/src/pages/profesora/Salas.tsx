@@ -18,18 +18,27 @@ export default function Salas() {
   const [busqueda, setBusqueda] = useState('')
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Alumno[]>([])
   const [cargando, setCargando] = useState(false)
+  const [cargandoInicial, setCargandoInicial] = useState(true)
   const [error, setError] = useState('')
   const busquedaTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { cargarSalas() }, [])
 
-  async function cargarSalas() {
+  async function cargarSalas(reintentos = 2) {
     try {
+      setCargandoInicial(true)
       const { data } = await api.get('/api/salas')
       console.log('[Salas] Salas cargadas:', data)
       setSalas(data)
     } catch (err) {
       console.error('[Salas] Error cargando salas:', err)
+      if (reintentos > 0) {
+        console.log(`[Salas] Reintentando... (${reintentos} intentos restantes)`)
+        await new Promise(r => setTimeout(r, 2000))
+        return cargarSalas(reintentos - 1)
+      }
+    } finally {
+      setCargandoInicial(false)
     }
   }
 
@@ -119,7 +128,17 @@ export default function Salas() {
         {/* Salas */}
         <div>
           <h2 className="font-bold text-lg mb-3" style={{ color: 'var(--text)' }}>Salas</h2>
-          {salas.length === 0 && (
+          {cargandoInicial && salas.length === 0 && (
+            <div className="bg-white rounded-2xl p-8 text-center text-gray-400">
+              <div className="flex justify-center gap-2 mb-2">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="w-2 h-2 bg-purple-300 rounded-full animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+                ))}
+              </div>
+              Cargando salas...
+            </div>
+          )}
+          {!cargandoInicial && salas.length === 0 && (
             <div className="bg-white rounded-2xl p-8 text-center text-gray-400">No tienes salas aún.</div>
           )}
           <div className="space-y-3">

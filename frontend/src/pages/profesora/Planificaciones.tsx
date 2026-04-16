@@ -13,13 +13,15 @@ export default function Planificaciones() {
   const [temaIdsSeleccionados, setTemaIdsSeleccionados] = useState<number[]>([])
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
+  const [cargandoInicial, setCargandoInicial] = useState(true)
 
   useEffect(() => {
     cargar()
   }, [])
 
-  async function cargar() {
+  async function cargar(reintentos = 2) {
     try {
+      setCargandoInicial(true)
       const p = await api.get('/api/planificaciones').catch(e => { console.error('[Plan] Error planificaciones:', e); return { data: [] } })
       const s = await api.get('/api/salas').catch(e => { console.error('[Plan] Error salas:', e); return { data: [] } })
       const m = await api.get('/api/materias').catch(e => { console.error('[Plan] Error materias:', e); return { data: [] } })
@@ -27,8 +29,20 @@ export default function Planificaciones() {
       setPlanificaciones(p.data)
       setSalas(s.data)
       setMaterias(m.data)
+      // Si todo vino vacío y hay reintentos, reintentar (cold start de Railway)
+      if (p.data.length === 0 && s.data.length === 0 && reintentos > 0) {
+        console.log(`[Plan] Todo vacío, reintentando... (${reintentos})`)
+        await new Promise(r => setTimeout(r, 2000))
+        return cargar(reintentos - 1)
+      }
     } catch (e) {
       console.error('[Plan] Error general cargando:', e)
+      if (reintentos > 0) {
+        await new Promise(r => setTimeout(r, 2000))
+        return cargar(reintentos - 1)
+      }
+    } finally {
+      setCargandoInicial(false)
     }
   }
 
@@ -73,7 +87,16 @@ export default function Planificaciones() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
-        {planificaciones.length === 0 ? (
+        {cargandoInicial ? (
+          <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
+            <div className="flex justify-center gap-2 mb-4">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-3 h-3 bg-purple-300 rounded-full animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+            <p className="text-gray-400">Cargando planificaciones...</p>
+          </div>
+        ) : planificaciones.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
             <div className="text-5xl mb-4">📋</div>
             <p className="text-gray-500">No tienes planificaciones aún.</p>
