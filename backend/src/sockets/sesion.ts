@@ -10,13 +10,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     socket.join(room)
     socket.join(`alumno:${data.alumnoId}`)
 
-    // Cerrar sesiones huérfanas (>8 horas sin finalizar)
-    await db.query(
-      `UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW()
-       WHERE estado != 'finalizada' AND iniciada_en < NOW() - INTERVAL '8 hours'`
-    )
-
-    // Verificar si hay sesión activa reciente
+    // Verificar si hay sesión activa
     const sesion = await db.query(
       `SELECT s.*, e.tipo, e.contenido, e.titulo, e.puntos,
               m.nombre AS materia, pr.nombre AS profesora
@@ -28,7 +22,6 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
        WHERE s.planificacion_id IN (
          SELECT id FROM planificaciones WHERE sala_id = $1
        ) AND s.estado != 'finalizada'
-       AND s.iniciada_en > NOW() - INTERVAL '8 hours'
        ORDER BY s.iniciada_en DESC LIMIT 1`,
       [data.salaId]
     )
