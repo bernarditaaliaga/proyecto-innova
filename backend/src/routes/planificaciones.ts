@@ -92,10 +92,15 @@ router.post('/:id/ejercicios', verificarToken, soloProfesor, async (req: AuthReq
     return
   }
 
+  if (!temaId) {
+    res.status(400).json({ error: 'Debes seleccionar un tema' })
+    return
+  }
+
   const resultado = await db.query(
     `INSERT INTO ejercicios (planificacion_id, tema_id, titulo, tipo, contenido, puntos, orden)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [req.params.id, temaId || null, titulo, tipo, JSON.stringify(contenido), puntos || 10, orden || 0]
+    [req.params.id, temaId, titulo, tipo, JSON.stringify(contenido), puntos || 10, orden || 0]
   )
   res.status(201).json(resultado.rows[0])
 })

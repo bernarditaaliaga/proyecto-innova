@@ -2,9 +2,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { useSocket } from '../../hooks/useSocket'
-import type { Planificacion, Ejercicio } from '../../types'
+import type { Planificacion, Ejercicio, Materia, Tema } from '../../types'
 
 type EstadoSesion = 'cargando' | 'sin_iniciar' | 'esperando' | 'ejercicio_activo' | 'finalizada'
+type TipoEjRapido = 'seleccion_multiple' | 'matematica_desarrollo' | 'dibujo'
 
 interface RespuestaAlumno {
   alumnoId: number
@@ -27,6 +28,22 @@ export default function Sesion() {
   const [totalAlumnos, setTotalAlumnos] = useState(0)
   const [confirmFinalizar, setConfirmFinalizar] = useState(false)
   const ejercicioActivoRef = useRef<Ejercicio | null>(null)
+
+  // Crear ejercicio en vivo
+  const [modalNuevoEj, setModalNuevoEj] = useState(false)
+  const [nuevoEjTipo, setNuevoEjTipo] = useState<TipoEjRapido | null>(null)
+  const [nuevoEjTitulo, setNuevoEjTitulo] = useState('')
+  const [nuevoEjTemaId, setNuevoEjTemaId] = useState('')
+  const [nuevoEjPuntos, setNuevoEjPuntos] = useState(10)
+  const [nuevoEjCargando, setNuevoEjCargando] = useState(false)
+  const [nuevoEjError, setNuevoEjError] = useState('')
+  const [temasMateriaVivo, setTemasMateriaVivo] = useState<Tema[]>([])
+  // Campos específicos
+  const [ejPregunta, setEjPregunta] = useState('')
+  const [ejOpciones, setEjOpciones] = useState([{ texto: '', correcta: false }, { texto: '', correcta: false }])
+  const [ejEnunciado, setEjEnunciado] = useState('')
+  const [ejRespuesta, setEjRespuesta] = useState('')
+  const [ejInstruccion, setEjInstruccion] = useState('')
 
   useEffect(() => { cargar() }, [id])
 
@@ -70,7 +87,63 @@ export default function Sesion() {
     // Obtener total de alumnos de la sala
     const sala = await api.get(`/api/salas/${data.sala_id}/alumnos`)
     setTotalAlumnos(sala.data.length)
+
+    // Cargar temas de la materia para ejercicios en vivo
+    try {
+      const m = await api.get('/api/materias')
+      const materia = (m.data as Materia[]).find(mat => mat.id === data.materia_id)
+      if (materia) setTemasMateriaVivo(materia.temas || [])
+    } catch { /* silenciar */ }
+
     setEstado('sin_iniciar')
+  }
+
+  function abrirModalNuevoEj() {
+    setModalNuevoEj(true)
+    setNuevoEjTipo(null)
+    setNuevoEjTitulo('')
+    setNuevoEjTemaId('')
+    setNuevoEjPuntos(10)
+    setNuevoEjError('')
+    setEjPregunta('')
+    setEjOpciones([{ texto: '', correcta: false }, { texto: '', correcta: false }])
+    setEjEnunciado('')
+    setEjRespuesta('')
+    setEjInstruccion('')
+  }
+
+  async function crearEjercicioEnVivo(e: React.FormEvent) {
+    e.preventDefault()
+    if (!nuevoEjTitulo.trim()) { setNuevoEjError('Escribe el título'); return }
+    if (!nuevoEjTemaId) { setNuevoEjError('Selecciona un tema'); return }
+
+    let contenido: unknown
+    if (nuevoEjTipo === 'seleccion_multiple') {
+      if (ejOpciones.filter(o => o.texto.trim()).length < 2) { setNuevoEjError('Agrega al menos 2 opciones'); return }
+      if (!ejOpciones.some(o => o.correcta)) { setNuevoEjError('Marca una opción como correcta'); return }
+      contenido = { pregunta: ejPregunta, opciones: ejOpciones.filter(o => o.texto.trim()) }
+    } else if (nuevoEjTipo === 'matematica_desarrollo') {
+      if (!ejEnunciado || !ejRespuesta) { setNuevoEjError('Completa enunciado y respuesta'); return }
+      contenido = { enunciado: ejEnunciado, respuesta_correcta: ejRespuesta }
+    } else if (nuevoEjTipo === 'dibujo') {
+      contenido = { instruccion: ejInstruccion }
+    }
+
+    setNuevoEjCargando(true)
+    try {
+      await api.post(`/api/planificaciones/${id}/ejercicios`, {
+        titulo: nuevoEjTitulo,
+        tipo: nuevoEjTipo,
+        contenido,
+        puntos: nuevoEjPuntos,
+        temaId: Number(nuevoEjTemaId),
+        orden: plan?.ejercicios?.length || 0
+      })
+      setModalNuevoEj(false)
+      cargar() // Recargar plan con el nuevo ejercicio
+    } catch {
+      setNuevoEjError('Error al crear ejercicio')
+    } finally { setNuevoEjCargando(false) }
   }
 
   function iniciarSesion() {
@@ -163,7 +236,14 @@ export default function Sesion() {
 
             {/* Panel izquierdo: ejercicios */}
             <div className="md:col-span-1">
-              <h3 className="font-bold mb-3" style={{ color: 'var(--text)' }}>Ejercicios</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold" style={{ color: 'var(--text)' }}>Ejercicios</h3>
+                <button onClick={abrirModalNuevoEj}
+                  className="text-xs px-3 py-1.5 rounded-xl text-white cursor-pointer font-semibold"
+                  style={{ background: 'var(--primary)' }}>
+                  + Nuevo
+                </button>
+              </div>
               <div className="space-y-2">
                 {plan.ejercicios?.map((ej, i) => {
                   const activo = ejercicioActivo?.id === ej.id
@@ -359,6 +439,133 @@ export default function Sesion() {
           </div>
         )}
       </div>
+
+      {/* Modal crear ejercicio en vivo */}
+      {modalNuevoEj && (
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl my-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+              <div className="flex items-center gap-2">
+                {nuevoEjTipo && (
+                  <button onClick={() => setNuevoEjTipo(null)} className="text-gray-500 hover:text-purple-600 cursor-pointer font-bold">←</button>
+                )}
+                <h3 className="font-bold" style={{ color: 'var(--text)' }}>
+                  {nuevoEjTipo ? 'Nuevo ejercicio' : 'Tipo de ejercicio'}
+                </h3>
+              </div>
+              <button onClick={() => setModalNuevoEj(false)}
+                className="text-gray-400 hover:text-red-500 cursor-pointer text-2xl font-bold">×</button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              {!nuevoEjTipo && (
+                <div className="grid grid-cols-1 gap-2">
+                  {([
+                    { v: 'seleccion_multiple' as TipoEjRapido, l: 'Seleccion multiple', d: 'Pregunta con alternativas' },
+                    { v: 'matematica_desarrollo' as TipoEjRapido, l: 'Matematica', d: 'Problema con respuesta' },
+                    { v: 'dibujo' as TipoEjRapido, l: 'Dibujo libre', d: 'El alumno dibuja' },
+                  ]).map(t => (
+                    <button key={t.v} onClick={() => setNuevoEjTipo(t.v)}
+                      className="text-left px-4 py-3 rounded-xl border-2 border-gray-100 hover:border-purple-300 hover:bg-purple-50 cursor-pointer transition-all">
+                      <span className="text-sm font-bold text-gray-700">{t.l}</span>
+                      <span className="text-xs text-gray-400 ml-2">{t.d}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {nuevoEjTipo && (
+                <form onSubmit={crearEjercicioEnVivo} className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Titulo *</label>
+                    <input type="text" value={nuevoEjTitulo} onChange={e => setNuevoEjTitulo(e.target.value)} required
+                      placeholder="ej: Suma de fracciones"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Tema *</label>
+                      <select value={nuevoEjTemaId} onChange={e => setNuevoEjTemaId(e.target.value)} required
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                        <option value="">Selecciona</option>
+                        {temasMateriaVivo.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Puntos</label>
+                      <input type="number" min={1} max={100} value={nuevoEjPuntos}
+                        onChange={e => setNuevoEjPuntos(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    </div>
+                  </div>
+
+                  <hr className="border-gray-100" />
+
+                  {/* Seleccion multiple */}
+                  {nuevoEjTipo === 'seleccion_multiple' && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Pregunta</label>
+                        <input type="text" value={ejPregunta} onChange={e => setEjPregunta(e.target.value)} required
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      </div>
+                      {ejOpciones.map((op, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="radio" name="correcta" checked={op.correcta}
+                            onChange={() => setEjOpciones(ops => ops.map((o, j) => ({ ...o, correcta: j === i })))}
+                            className="cursor-pointer" />
+                          <input type="text" value={op.texto}
+                            onChange={e => setEjOpciones(ops => ops.map((o, j) => j === i ? { ...o, texto: e.target.value } : o))}
+                            placeholder={`Opcion ${i + 1}`}
+                            className="flex-1 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 text-sm" />
+                          {ejOpciones.length > 2 && (
+                            <button type="button" onClick={() => setEjOpciones(ops => ops.filter((_, j) => j !== i))}
+                              className="text-gray-300 hover:text-red-400 cursor-pointer">×</button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setEjOpciones(ops => [...ops, { texto: '', correcta: false }])}
+                        className="text-xs text-purple-500 font-semibold cursor-pointer">+ Agregar opcion</button>
+                    </div>
+                  )}
+
+                  {/* Matematica */}
+                  {nuevoEjTipo === 'matematica_desarrollo' && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Enunciado</label>
+                        <textarea value={ejEnunciado} onChange={e => setEjEnunciado(e.target.value)} required rows={2}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Respuesta correcta</label>
+                        <input type="text" value={ejRespuesta} onChange={e => setEjRespuesta(e.target.value)} required
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dibujo */}
+                  {nuevoEjTipo === 'dibujo' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Instruccion</label>
+                      <input type="text" value={ejInstruccion} onChange={e => setEjInstruccion(e.target.value)} required
+                        placeholder="ej: Dibuja el ciclo del agua"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    </div>
+                  )}
+
+                  {nuevoEjError && <p className="text-red-500 text-sm">{nuevoEjError}</p>}
+                  <button type="submit" disabled={nuevoEjCargando}
+                    className="w-full py-3 rounded-xl font-bold text-white cursor-pointer"
+                    style={{ background: nuevoEjCargando ? '#a29bfe' : 'var(--primary)' }}>
+                    {nuevoEjCargando ? 'Guardando...' : 'Crear ejercicio'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmar finalizar */}
       {confirmFinalizar && (

@@ -21,7 +21,7 @@ export default function EditarPlan() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [plan, setPlan] = useState<Planificacion | null>(null)
-  const [_materias, setMaterias] = useState<Materia[]>([])
+  const [materias, setMaterias] = useState<Materia[]>([])
   const [modal, setModal] = useState(false)
   const [tipo, setTipo] = useState<TipoEjercicio | null>(null)
   const [titulo, setTitulo] = useState('')
@@ -34,6 +34,7 @@ export default function EditarPlan() {
   const [instruccion, setInstruccion] = useState('')
   const [urlVideo, setUrlVideo] = useState('')
   const [urlImagen, setUrlImagen] = useState('')
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
 
   useEffect(() => { cargar() }, [id])
 
@@ -59,6 +60,7 @@ export default function EditarPlan() {
   }
 
   async function guardarConContenido(contenido: unknown, tipoFinal?: string) {
+    if (!temaId) { setError('Debes seleccionar un tema'); return }
     setCargando(true)
     try {
       await api.post(`/api/planificaciones/${id}/ejercicios`, {
@@ -93,7 +95,9 @@ export default function EditarPlan() {
     cargar()
   }
 
-  const temasDelPlan: Tema[] = plan?.temas || []
+  // Temas: usar los de la materia del plan (no solo los seleccionados al crear)
+  const materiaDelPlan = materias.find(m => m.id === plan?.materia_id)
+  const temasDisponibles: Tema[] = materiaDelPlan?.temas || plan?.temas || []
 
   if (!plan) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
@@ -113,9 +117,9 @@ export default function EditarPlan() {
             <h1 className="text-lg font-bold text-white truncate">{plan.titulo}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-purple-200 text-sm">{plan.sala} · {plan.materia}</p>
-              {temasDelPlan.length > 0 && (
+              {temasDisponibles.length > 0 && (
                 <div className="flex gap-1 flex-wrap">
-                  {temasDelPlan.map(t => (
+                  {temasDisponibles.map(t => (
                     <span key={t.id} className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{t.nombre}</span>
                   ))}
                 </div>
@@ -232,16 +236,14 @@ export default function EditarPlan() {
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
                       </div>
                     )}
-                    {temasDelPlan.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Tema</label>
-                        <select value={temaId} onChange={e => setTemaId(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
-                          <option value="">Sin tema</option>
-                          {temasDelPlan.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                        </select>
-                      </div>
-                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Tema *</label>
+                      <select value={temaId} onChange={e => setTemaId(e.target.value)} required
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                        <option value="">Selecciona un tema</option>
+                        {temasDisponibles.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      </select>
+                    </div>
                   </div>
                   <hr className="border-gray-100" />
                 </div>
@@ -286,10 +288,29 @@ export default function EditarPlan() {
                   )}
                   {tipo === 'mostrar_imagen' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">URL de la imagen</label>
-                      <input type="url" value={urlImagen} onChange={e => setUrlImagen(e.target.value)} required
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Imagen (JPG, PNG, GIF, WebP)</label>
+                      <input type="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setSubiendoImagen(true)
+                          try {
+                            const formData = new FormData()
+                            formData.append('imagen', file)
+                            const { data } = await api.post('/api/upload', formData, {
+                              headers: { 'Content-Type': 'multipart/form-data' }
+                            })
+                            setUrlImagen(data.url)
+                          } catch {
+                            setError('Error al subir imagen')
+                          } finally { setSubiendoImagen(false) }
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 text-sm" />
+                      {subiendoImagen && <p className="text-sm text-purple-500 mt-1">Subiendo imagen...</p>}
+                      <p className="text-xs text-gray-400 mt-1">O pega una URL directamente:</p>
+                      <input type="url" value={urlImagen} onChange={e => setUrlImagen(e.target.value)}
                         placeholder="https://..."
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 mt-1" />
                       {urlImagen && (
                         <img src={urlImagen} alt="preview" className="mt-2 rounded-lg max-h-32 object-contain w-full border" />
                       )}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
-import type { Sala, Alumno } from '../../types'
+import type { Sala, Alumno, Materia } from '../../types'
 
 type ModalAlumnoVista = 'elegir' | 'nuevo' | 'buscar'
 
@@ -10,6 +10,15 @@ interface Profesora {
   nombre: string
   email: string
   rol: 'jefe' | 'materia'
+}
+
+interface SalaMateria {
+  id: number
+  nombre: string
+  color: string
+  profesora_id: number
+  profesora_nombre: string
+  temas: { id: number; nombre: string }[] | null
 }
 
 export default function Salas() {
@@ -38,8 +47,13 @@ export default function Salas() {
   const [cargando, setCargando] = useState(false)
   const [cargandoInicial, setCargandoInicial] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'alumnos' | 'profesoras'>('alumnos')
+  const [tab, setTab] = useState<'alumnos' | 'profesoras' | 'materias'>('alumnos')
   const busquedaTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [salaMaterias, setSalaMaterias] = useState<SalaMateria[]>([])
+  const [todasMaterias, setTodasMaterias] = useState<Materia[]>([])
+  const [modalMateria, setModalMateria] = useState(false)
+  const [nuevoTema, setNuevoTema] = useState('')
+  const [temaParaMateria, setTemaParaMateria] = useState<number | null>(null)
 
   const esJefe = salaSeleccionada?.rol === 'jefe'
 
@@ -71,6 +85,42 @@ export default function Salas() {
   async function cargarProfesoras(salaId: number) {
     const { data } = await api.get(`/api/salas/${salaId}/profesoras`)
     setProfesoras(data)
+  }
+
+  async function cargarSalaMaterias(salaId: number) {
+    const { data } = await api.get(`/api/materias/sala/${salaId}`)
+    setSalaMaterias(data)
+  }
+
+  async function cargarTodasMaterias() {
+    const { data } = await api.get('/api/materias')
+    setTodasMaterias(data)
+  }
+
+  async function agregarMateriaASala(materiaId: number) {
+    if (!salaSeleccionada) return
+    await api.post(`/api/materias/sala/${salaSeleccionada.id}`, { materiaId })
+    cargarSalaMaterias(salaSeleccionada.id)
+    setModalMateria(false)
+  }
+
+  async function quitarMateriaASala(materiaId: number) {
+    if (!salaSeleccionada) return
+    await api.delete(`/api/materias/sala/${salaSeleccionada.id}/${materiaId}`)
+    cargarSalaMaterias(salaSeleccionada.id)
+  }
+
+  async function agregarTema(materiaId: number) {
+    if (!nuevoTema.trim()) return
+    await api.post(`/api/materias/${materiaId}/temas`, { nombre: nuevoTema.trim() })
+    setNuevoTema('')
+    setTemaParaMateria(null)
+    if (salaSeleccionada) cargarSalaMaterias(salaSeleccionada.id)
+  }
+
+  async function eliminarTema(temaId: number) {
+    await api.delete(`/api/materias/temas/${temaId}`)
+    if (salaSeleccionada) cargarSalaMaterias(salaSeleccionada.id)
   }
 
   async function crearSala(e: React.FormEvent) {
@@ -285,6 +335,12 @@ export default function Salas() {
                 }`}>
                 Alumnos ({alumnos.length})
               </button>
+              <button onClick={() => { setTab('materias'); cargarSalaMaterias(salaSeleccionada.id) }}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg cursor-pointer transition-all ${
+                  tab === 'materias' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-400'
+                }`}>
+                Materias
+              </button>
               <button onClick={() => { setTab('profesoras'); cargarProfesoras(salaSeleccionada.id) }}
                 className={`flex-1 py-2 text-sm font-semibold rounded-lg cursor-pointer transition-all ${
                   tab === 'profesoras' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-400'
@@ -323,6 +379,59 @@ export default function Salas() {
                   ))}
                 </div>
               </>
+            )}
+
+            {tab === 'materias' && (
+              <div className="space-y-3">
+                <button onClick={() => { setModalMateria(true); cargarTodasMaterias() }}
+                  className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500 cursor-pointer text-sm font-semibold transition-all">
+                  + Agregar materia a esta sala
+                </button>
+                {salaMaterias.length === 0 && (
+                  <div className="bg-white rounded-2xl p-8 text-center text-gray-400">
+                    No hay materias asignadas a esta sala.
+                  </div>
+                )}
+                {salaMaterias.map(sm => (
+                  <div key={sm.id} className="bg-white rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: sm.color }} />
+                      <span className="font-bold text-sm text-gray-700 flex-1">{sm.nombre}</span>
+                      <span className="text-xs text-gray-400">{sm.profesora_nombre}</span>
+                      <button onClick={() => quitarMateriaASala(sm.id)}
+                        className="text-gray-300 hover:text-red-400 cursor-pointer text-lg">×</button>
+                    </div>
+                    {/* Temas */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(sm.temas || []).map(t => (
+                        <span key={t.id} className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 flex items-center gap-1">
+                          {t.nombre}
+                          {t.nombre !== 'Otros' && (
+                            <button onClick={() => eliminarTema(t.id)}
+                              className="text-gray-300 hover:text-red-400 cursor-pointer ml-0.5">×</button>
+                          )}
+                        </span>
+                      ))}
+                      {temaParaMateria === sm.id ? (
+                        <form onSubmit={e => { e.preventDefault(); agregarTema(sm.id) }}
+                          className="flex items-center gap-1">
+                          <input type="text" value={nuevoTema} onChange={e => setNuevoTema(e.target.value)}
+                            placeholder="Nuevo tema" autoFocus
+                            className="text-xs px-2 py-1 rounded-full border border-purple-300 w-28 focus:outline-none" />
+                          <button type="submit" className="text-xs text-purple-500 font-bold cursor-pointer">OK</button>
+                          <button type="button" onClick={() => setTemaParaMateria(null)}
+                            className="text-xs text-gray-400 cursor-pointer">×</button>
+                        </form>
+                      ) : (
+                        <button onClick={() => { setTemaParaMateria(sm.id); setNuevoTema('') }}
+                          className="text-xs px-2.5 py-1 rounded-full border border-dashed border-gray-300 text-gray-400 hover:border-purple-300 hover:text-purple-500 cursor-pointer">
+                          + tema
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
 
             {tab === 'profesoras' && (
@@ -469,6 +578,28 @@ export default function Salas() {
               <BtnSubmit cargando={cargando} texto="Crear y añadir a la sala" />
             </form>
           )}
+        </Modal>
+      )}
+
+      {/* Modal agregar materia a sala */}
+      {modalMateria && (
+        <Modal titulo="Agregar materia" onClose={() => setModalMateria(false)}>
+          <p className="text-sm text-gray-400 mb-4">Selecciona la materia que enseñas en esta sala. Quedarás asignada como profesora.</p>
+          <div className="space-y-2">
+            {todasMaterias
+              .filter(m => !salaMaterias.some(sm => sm.id === m.id))
+              .map(m => (
+                <button key={m.id} onClick={() => agregarMateriaASala(m.id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 hover:border-purple-300 hover:bg-purple-50 cursor-pointer transition-all text-left">
+                  <div className="w-3 h-3 rounded-full" style={{ background: m.color }} />
+                  <span className="font-semibold text-sm text-gray-700">{m.nombre}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{m.temas?.length || 0} temas</span>
+                </button>
+              ))}
+            {todasMaterias.filter(m => !salaMaterias.some(sm => sm.id === m.id)).length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">Todas las materias ya están asignadas a esta sala.</p>
+            )}
+          </div>
         </Modal>
       )}
 

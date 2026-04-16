@@ -11,6 +11,7 @@ import materiasRoutes from './routes/materias'
 import planificacionesRoutes from './routes/planificaciones'
 import iaRoutes from './routes/ia'
 import metricasRoutes from './routes/metricas'
+import uploadRoutes from './routes/upload'
 import { registrarEventosSesion } from './sockets/sesion'
 
 dotenv.config()
@@ -78,6 +79,7 @@ app.use('/api/materias', materiasRoutes)
 app.use('/api/planificaciones', planificacionesRoutes)
 app.use('/api/ia', iaRoutes)
 app.use('/api/metricas', metricasRoutes)
+app.use('/api/upload', uploadRoutes)
 
 // Inicialización de BD al arrancar
 import { db } from './db'
@@ -177,6 +179,36 @@ async function initDB() {
         ('Ciencias',    '#2ECC71', 'flask')
       ON CONFLICT (nombre) DO NOTHING
     `)
+
+    // Tabla sala_materias (qué materias se enseñan en cada sala y por quién)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS sala_materias (
+        id SERIAL PRIMARY KEY,
+        sala_id INTEGER REFERENCES salas(id) ON DELETE CASCADE,
+        materia_id INTEGER REFERENCES materias(id) ON DELETE CASCADE,
+        profesora_id INTEGER REFERENCES profesoras(id) ON DELETE SET NULL,
+        creado_en TIMESTAMP DEFAULT NOW(),
+        UNIQUE(sala_id, materia_id)
+      )
+    `)
+
+    // Asegurar tema "Otros" en cada materia
+    const todasMaterias = await db.query('SELECT id FROM materias')
+    for (const mat of todasMaterias.rows) {
+      await db.query(
+        `INSERT INTO temas (nombre, materia_id) VALUES ('Otros', $1)
+         ON CONFLICT DO NOTHING`,
+        [mat.id]
+      )
+    }
+    // Agregar UNIQUE en temas(nombre, materia_id) si no existe
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'temas_nombre_materia_key') THEN
+          ALTER TABLE temas ADD CONSTRAINT temas_nombre_materia_key UNIQUE (nombre, materia_id);
+        END IF;
+      END $$
+    `).catch(() => {})
 
     // Limpiar sesiones huérfanas
     const r = await db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE estado != 'finalizada'`)

@@ -170,6 +170,9 @@ export default function Planificaciones() {
                   <option value="">Selecciona una materia</option>
                   {materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
                 </select>
+                {form.salaId && materias.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">No hay materias disponibles. Agrega materias a esta sala desde Mis Salas.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Fecha (opcional)</label>
