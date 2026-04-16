@@ -32,6 +32,15 @@ CREATE TABLE IF NOT EXISTS alumnos (
   creado_en TIMESTAMP DEFAULT NOW()
 );
 
+-- Relación muchos-a-muchos: alumnos en salas
+CREATE TABLE IF NOT EXISTS alumno_salas (
+  id SERIAL PRIMARY KEY,
+  alumno_id INTEGER REFERENCES alumnos(id) ON DELETE CASCADE,
+  sala_id INTEGER REFERENCES salas(id) ON DELETE CASCADE,
+  creado_en TIMESTAMP DEFAULT NOW(),
+  UNIQUE(alumno_id, sala_id)
+);
+
 -- Materias (globales, no por sala)
 CREATE TABLE IF NOT EXISTS materias (
   id SERIAL PRIMARY KEY,
