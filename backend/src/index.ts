@@ -41,6 +41,12 @@ app.use('/api/planificaciones', planificacionesRoutes)
 app.use('/api/ia', iaRoutes)
 app.use('/api/metricas', metricasRoutes)
 
+// Limpiar sesiones huérfanas al iniciar el servidor
+import { db } from './db'
+db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE estado != 'finalizada'`)
+  .then(r => console.log(`Sesiones huérfanas cerradas: ${r.rowCount}`))
+  .catch(() => {})
+
 // Socket.io
 io.on('connection', (socket) => {
   console.log(`Conectado: ${socket.id}`)

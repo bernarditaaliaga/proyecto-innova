@@ -10,7 +10,13 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     socket.join(room)
     socket.join(`alumno:${data.alumnoId}`)
 
-    // Verificar si hay sesión activa (solo las últimas 8 horas)
+    // Cerrar sesiones huérfanas (>8 horas sin finalizar)
+    await db.query(
+      `UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW()
+       WHERE estado != 'finalizada' AND iniciada_en < NOW() - INTERVAL '8 hours'`
+    )
+
+    // Verificar si hay sesión activa reciente
     const sesion = await db.query(
       `SELECT s.*, e.tipo, e.contenido, e.titulo, e.puntos,
               m.nombre AS materia, pr.nombre AS profesora
