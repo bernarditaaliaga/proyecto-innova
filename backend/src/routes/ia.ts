@@ -47,6 +47,7 @@ Responde SOLO con JSON válido:
   if (!prompt) return []
 
   try {
+    console.log(`[IA] Generando ${cantidad} variantes para tipo: ${tipo}`)
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
@@ -55,11 +56,16 @@ Responde SOLO con JSON válido:
 
     const texto = message.content[0].type === 'text' ? message.content[0].text : ''
     const match = texto.match(/\{[\s\S]*\}/)
-    if (!match) return []
+    if (!match) {
+      console.error('[IA] No se encontró JSON en respuesta:', texto.slice(0, 200))
+      return []
+    }
 
     const data = JSON.parse(match[0])
+    console.log(`[IA] Generadas ${(data.variantes || []).length} variantes`)
     return (data.variantes || []) as Record<string, unknown>[]
-  } catch {
+  } catch (e) {
+    console.error('[IA] Error generando variantes:', e)
     return []
   }
 }
