@@ -188,13 +188,15 @@ export default function EditarPlan() {
             <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 {tipo && (
-                  <button onClick={() => setTipo(null)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-sm">←</button>
+                  <button onClick={() => setTipo(null)}
+                    className="text-gray-500 hover:text-purple-600 cursor-pointer text-lg font-bold px-1">←</button>
                 )}
                 <h3 className="font-bold" style={{ color: 'var(--text)' }}>
                   {tipo ? `${tipoInfo?.icono} ${tipoInfo?.etiqueta}` : 'Añadir a la clase'}
                 </h3>
               </div>
-              <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl">×</button>
+              <button onClick={() => setModal(false)}
+                className="text-gray-400 hover:text-red-500 cursor-pointer text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition-all">×</button>
             </div>
 
             <div className="p-5">
