@@ -25,7 +25,15 @@ export default function Aula() {
   useEffect(() => {
     if (!socket || !usuario) return
 
-    socket.emit('alumno:unirse', { salaId: usuario.salaId, alumnoId: usuario.id })
+    const unirse = () => {
+      console.log('[Aula] Emitiendo alumno:unirse', { salaId: usuario.salaId, alumnoId: usuario.id })
+      socket.emit('alumno:unirse', { salaId: usuario.salaId, alumnoId: usuario.id })
+    }
+
+    // Unirse al conectar (y reconectar)
+    socket.on('connect', unirse)
+    // Si ya está conectado, unirse ahora
+    if (socket.connected) unirse()
 
     // No hay sesion activa -> metricas
     socket.on('sesion:esperando', () => {
@@ -103,6 +111,7 @@ export default function Aula() {
     })
 
     return () => {
+      socket.off('connect', unirse)
       socket.off('sesion:esperando')
       socket.off('sesion:estado')
       socket.off('sesion:iniciada')

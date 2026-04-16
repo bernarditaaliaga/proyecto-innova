@@ -46,11 +46,21 @@ export default function Sesion() {
       })
     })
 
+    // Reconectar la profesora al room de la sala si hay sesión activa
+    const reconectar = () => {
+      if (plan && sesionId) {
+        console.log('[Sesion] Reconectando profesora a sala:', plan.sala_id)
+        socket.emit('profesora:reconectar', { salaId: plan.sala_id, sesionId })
+      }
+    }
+    socket.on('connect', reconectar)
+
     return () => {
       socket.off('sesion:creada')
       socket.off('respuesta:alumno')
+      socket.off('connect', reconectar)
     }
-  }, [socket])
+  }, [socket, plan, sesionId])
 
   async function cargar() {
     const { data } = await api.get(`/api/planificaciones/${id}`)

@@ -3,7 +3,14 @@ import Anthropic from '@anthropic-ai/sdk'
 import { verificarToken, soloProfesor, AuthRequest } from '../middleware/auth'
 
 const router = Router()
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+const apiKey = process.env.ANTHROPIC_API_KEY
+if (!apiKey) {
+  console.error('[IA] ⚠️ ANTHROPIC_API_KEY no está configurada!')
+} else {
+  console.log(`[IA] API key configurada (${apiKey.slice(0, 10)}...${apiKey.slice(-4)})`)
+}
+const anthropic = new Anthropic({ apiKey: apiKey || '' })
 
 export async function generarVariantesEjercicio(
   tipo: string,
@@ -48,11 +55,13 @@ Responde SOLO con JSON válido:
 
   try {
     console.log(`[IA] Generando ${cantidad} variantes para tipo: ${tipo}`)
+    console.log(`[IA] Usando API key: ${apiKey ? `${apiKey.slice(0, 10)}...` : 'NO CONFIGURADA'}`)
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }]
     })
+    console.log(`[IA] Respuesta recibida, tokens usados: ${message.usage?.output_tokens}`)
 
     const texto = message.content[0].type === 'text' ? message.content[0].text : ''
     const match = texto.match(/\{[\s\S]*\}/)
@@ -64,8 +73,13 @@ Responde SOLO con JSON válido:
     const data = JSON.parse(match[0])
     console.log(`[IA] Generadas ${(data.variantes || []).length} variantes`)
     return (data.variantes || []) as Record<string, unknown>[]
-  } catch (e) {
-    console.error('[IA] Error generando variantes:', e)
+  } catch (e: unknown) {
+    const err = e as { status?: number; message?: string; error?: { type?: string; message?: string } }
+    console.error('[IA] Error generando variantes:')
+    console.error('[IA]   Status:', err.status)
+    console.error('[IA]   Message:', err.message)
+    console.error('[IA]   Error type:', err.error?.type)
+    console.error('[IA]   Error detail:', err.error?.message)
     return []
   }
 }

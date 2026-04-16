@@ -6,6 +6,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
 
   // Alumno se une a su sala
   socket.on('alumno:unirse', async (data: { salaId: number; alumnoId: number }) => {
+    console.log(`[Socket] Alumno ${data.alumnoId} uniéndose a sala:${data.salaId}`)
     const room = `sala:${data.salaId}`
     socket.join(room)
     socket.join(`alumno:${data.alumnoId}`)
@@ -67,6 +68,12 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     }
   })
 
+  // Profesora reconecta a sala
+  socket.on('profesora:reconectar', async (data: { salaId: number; sesionId: number }) => {
+    console.log(`[Socket] Profesora reconecta a sala:${data.salaId}`)
+    socket.join(`sala:${data.salaId}`)
+  })
+
   // Profesora inicia sesión
   socket.on('profesora:iniciar_sesion', async (data: { planificacionId: number }) => {
     const resultado = await db.query(
@@ -88,7 +95,10 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     const salaId = info.rows[0]?.sala_id
 
     if (salaId) {
+      console.log(`[Socket] Profesora inicia sesión en sala:${salaId}, sesionId:${sesion.id}`)
       socket.join(`sala:${salaId}`)
+      const room = io.sockets.adapter.rooms.get(`sala:${salaId}`)
+      console.log(`[Socket] Sockets en sala:${salaId}: ${room ? room.size : 0}`)
       io.to(`sala:${salaId}`).emit('sesion:iniciada', {
         sesionId: sesion.id,
         materia: info.rows[0]?.materia || '',
