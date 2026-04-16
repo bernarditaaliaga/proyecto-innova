@@ -34,6 +34,29 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', app: 'AprendIA' })
 })
 
+// Diagnóstico temporal — ver estado de la BD
+app.get('/api/debug/db', async (_req, res) => {
+  try {
+    const profesoras = await db.query('SELECT id, nombre, email FROM profesoras')
+    const salas = await db.query('SELECT id, nombre, codigo, profesora_id FROM salas')
+    const alumnos = await db.query('SELECT id, nombre, apellido, username FROM alumnos')
+    const alumnoSalas = await db.query('SELECT * FROM alumno_salas')
+    const materias = await db.query('SELECT id, nombre FROM materias')
+    const tables = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`)
+    res.json({
+      tables: tables.rows.map(r => r.tablename),
+      profesoras: profesoras.rows,
+      salas: salas.rows,
+      alumnos: alumnos.rows,
+      alumno_salas: alumnoSalas.rows,
+      materias: materias.rows
+    })
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/salas', salasRoutes)
 app.use('/api/alumnos', alumnosRoutes)
@@ -71,6 +94,16 @@ async function initDB() {
     // Limpiar sesiones huérfanas
     const r = await db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE estado != 'finalizada'`)
     console.log(`Sesiones huérfanas cerradas: ${r.rowCount}`)
+
+    // Log estado de la BD
+    const counts = await Promise.all([
+      db.query('SELECT COUNT(*) FROM profesoras'),
+      db.query('SELECT COUNT(*) FROM salas'),
+      db.query('SELECT COUNT(*) FROM alumnos'),
+      db.query('SELECT COUNT(*) FROM alumno_salas'),
+      db.query('SELECT COUNT(*) FROM materias'),
+    ])
+    console.log(`[DB] profesoras: ${counts[0].rows[0].count}, salas: ${counts[1].rows[0].count}, alumnos: ${counts[2].rows[0].count}, alumno_salas: ${counts[3].rows[0].count}, materias: ${counts[4].rows[0].count}`)
   } catch (e) {
     console.error('Error en initDB:', e)
   }
