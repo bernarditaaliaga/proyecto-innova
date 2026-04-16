@@ -29,8 +29,8 @@ export default function FormMatematica({ onGuardar, cargando }: Props) {
     setGenerando(true)
     try {
       const { data } = await api.post('/api/ia/variantes', {
-        enunciado,
-        respuestaCorrecta: respuesta,
+        tipo: 'matematica_desarrollo',
+        contenido: { enunciado, respuesta_correcta: respuesta },
         cantidad: 5
       })
       setVariantes(data.variantes)
