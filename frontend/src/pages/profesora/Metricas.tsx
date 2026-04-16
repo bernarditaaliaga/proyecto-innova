@@ -145,7 +145,6 @@ export default function Metricas() {
     } finally { setEnviando(false) }
   }
 
-  const salaActual = salas.find(s => s.id === salaId)
   const materiasUnicas = Array.from(
     new Map(clase.flatMap(a => a.materias).map(m => [m.id, m])).values()
   )
