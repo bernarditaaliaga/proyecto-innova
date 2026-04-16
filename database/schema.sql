@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS alumno_salas (
 -- Materias (globales, no por sala)
 CREATE TABLE IF NOT EXISTS materias (
   id SERIAL PRIMARY KEY,
-  nombre VARCHAR(100) NOT NULL,
+  nombre VARCHAR(100) UNIQUE NOT NULL,
   color VARCHAR(7) DEFAULT '#4A90D9',  -- color para UI
   icono VARCHAR(50) DEFAULT 'book'
 );

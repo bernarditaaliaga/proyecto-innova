@@ -24,8 +24,13 @@ export default function Salas() {
   useEffect(() => { cargarSalas() }, [])
 
   async function cargarSalas() {
-    const { data } = await api.get('/api/salas')
-    setSalas(data)
+    try {
+      const { data } = await api.get('/api/salas')
+      console.log('[Salas] Salas cargadas:', data)
+      setSalas(data)
+    } catch (err) {
+      console.error('[Salas] Error cargando salas:', err)
+    }
   }
 
   async function cargarAlumnos(sala: Sala) {

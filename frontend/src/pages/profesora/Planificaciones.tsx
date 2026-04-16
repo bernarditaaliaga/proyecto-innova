@@ -19,14 +19,17 @@ export default function Planificaciones() {
   }, [])
 
   async function cargar() {
-    const [p, s, m] = await Promise.all([
-      api.get('/api/planificaciones'),
-      api.get('/api/salas'),
-      api.get('/api/materias')
-    ])
-    setPlanificaciones(p.data)
-    setSalas(s.data)
-    setMaterias(m.data)
+    try {
+      const p = await api.get('/api/planificaciones').catch(e => { console.error('[Plan] Error planificaciones:', e); return { data: [] } })
+      const s = await api.get('/api/salas').catch(e => { console.error('[Plan] Error salas:', e); return { data: [] } })
+      const m = await api.get('/api/materias').catch(e => { console.error('[Plan] Error materias:', e); return { data: [] } })
+      console.log('[Plan] planificaciones:', p.data.length, 'salas:', s.data.length, 'materias:', m.data.length)
+      setPlanificaciones(p.data)
+      setSalas(s.data)
+      setMaterias(m.data)
+    } catch (e) {
+      console.error('[Plan] Error general cargando:', e)
+    }
   }
 
   async function crear(e: React.FormEvent) {

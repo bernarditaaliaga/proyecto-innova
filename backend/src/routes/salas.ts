@@ -6,16 +6,24 @@ const router = Router()
 
 // Obtener salas de la profesora
 router.get('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
-  const resultado = await db.query(
-    `SELECT s.*, COUNT(als.alumno_id) AS total_alumnos
-     FROM salas s
-     LEFT JOIN alumno_salas als ON als.sala_id = s.id
-     WHERE s.profesora_id = $1
-     GROUP BY s.id
-     ORDER BY s.nombre`,
-    [req.usuario!.id]
-  )
-  res.json(resultado.rows)
+  try {
+    console.log(`[Salas] GET / profesora_id=${req.usuario!.id}`)
+    const resultado = await db.query(
+      `SELECT s.*, COUNT(als.alumno_id) AS total_alumnos
+       FROM salas s
+       LEFT JOIN alumno_salas als ON als.sala_id = s.id
+       WHERE s.profesora_id = $1
+       GROUP BY s.id
+       ORDER BY s.nombre`,
+      [req.usuario!.id]
+    )
+    console.log(`[Salas] Devolviendo ${resultado.rows.length} salas`)
+    res.json(resultado.rows)
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    console.error('[Salas] Error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // Crear sala

@@ -34,6 +34,20 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', app: 'AprendIA' })
 })
 
+// Diagnóstico temporal — verificar token
+app.get('/api/debug/token', (req, res) => {
+  const header = req.headers.authorization
+  if (!header) { res.json({ error: 'No token' }); return }
+  try {
+    const jwt = require('jsonwebtoken')
+    const payload = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET)
+    res.json({ payload })
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    res.json({ error: 'Token inválido', message: err.message })
+  }
+})
+
 // Diagnóstico temporal — ver estado de la BD
 app.get('/api/debug/db', async (_req, res) => {
   try {
@@ -82,13 +96,32 @@ async function initDB() {
     `)
     console.log('Tabla alumno_salas verificada')
 
+    // Agregar UNIQUE a materias.nombre si no existe
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'materias_nombre_key') THEN
+          ALTER TABLE materias ADD CONSTRAINT materias_nombre_key UNIQUE (nombre);
+        END IF;
+      END $$
+    `).catch(() => {
+      // Si falla por duplicados, limpiar primero
+      console.log('[DB] Limpiando materias duplicadas...')
+    })
+
+    // Limpiar materias duplicadas (quedarse solo con el ID más bajo por nombre)
+    await db.query(`
+      DELETE FROM materias WHERE id NOT IN (
+        SELECT MIN(id) FROM materias GROUP BY nombre
+      )
+    `)
+
     // Asegurar materias base
     await db.query(`
       INSERT INTO materias (nombre, color, icono) VALUES
         ('Matemáticas', '#E74C3C', 'calculator'),
         ('Lenguaje',    '#3498DB', 'book-open'),
         ('Ciencias',    '#2ECC71', 'flask')
-      ON CONFLICT DO NOTHING
+      ON CONFLICT (nombre) DO NOTHING
     `)
 
     // Limpiar sesiones huérfanas
