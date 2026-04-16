@@ -55,7 +55,7 @@ export default function Metricas() {
   const [periodo, setPeriodo] = useState<Periodo>('mes')
   const [vista, setVista] = useState<Vista>('resumen')
   const [rol, setRol] = useState<'jefe' | 'materia' | null>(null)
-  const [cargando, setCargando] = useState(false)
+  const [cargando, setCargando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [exito, setExito] = useState('')
 
@@ -67,9 +67,11 @@ export default function Metricas() {
 
   useEffect(() => {
     api.get('/api/salas').then(r => {
-      setSalas(r.data)
-      if (r.data.length > 0) setSalaId(r.data[0].id)
-    })
+      const salasData = r.data || []
+      setSalas(salasData)
+      if (salasData.length > 0) setSalaId(salasData[0].id)
+      else setCargando(false)
+    }).catch(() => setCargando(false))
   }, [])
 
   useEffect(() => {
@@ -85,17 +87,28 @@ export default function Metricas() {
   async function cargarResumen() {
     try {
       const { data } = await api.get(`/api/metricas/resumen-materias/${salaId}?periodo=${periodo}`)
-      setResumenMaterias(data.materias)
-      setRol(data.rol)
-    } catch { /* silenciar */ }
+      setResumenMaterias(data?.materias || [])
+      if (data?.rol) setRol(data.rol)
+    } catch (err) {
+      console.error('[Metricas] Error cargando resumen:', err)
+      setResumenMaterias([])
+    }
   }
 
   async function cargarClase() {
     setCargando(true)
     try {
       const { data } = await api.get(`/api/metricas/clase/${salaId}?periodo=${periodo}`)
-      setClase(data.alumnos)
-      setRol(data.rol)
+      // Compatibilidad: respuesta puede ser { rol, alumnos } o array directo
+      if (Array.isArray(data)) {
+        setClase(data)
+      } else {
+        setClase(data?.alumnos || [])
+        if (data?.rol) setRol(data.rol)
+      }
+    } catch (err) {
+      console.error('[Metricas] Error cargando clase:', err)
+      setClase([])
     } finally { setCargando(false) }
   }
 
@@ -103,8 +116,10 @@ export default function Metricas() {
     setCargando(true)
     try {
       const { data } = await api.get(`/api/metricas/materia/${materia.id}/sala/${salaId}?periodo=${periodo}`)
-      setMateriaDetalle({ materia, alumnos: data })
+      setMateriaDetalle({ materia, alumnos: Array.isArray(data) ? data : [] })
       setVista('materia')
+    } catch (err) {
+      console.error('[Metricas] Error cargando detalle materia:', err)
     } finally { setCargando(false) }
   }
 
@@ -112,8 +127,8 @@ export default function Metricas() {
     setCargando(true)
     try {
       const { data } = await api.get(`/api/metricas/alumno/${alumnoId}?salaId=${salaId}&periodo=${periodo}`)
-      setPerfil(data)
-      setVista('alumno')
+      setPerfil(data || null)
+      if (data) setVista('alumno')
     } finally { setCargando(false) }
   }
 
