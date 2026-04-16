@@ -10,14 +10,19 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     socket.join(room)
     socket.join(`alumno:${data.alumnoId}`)
 
-    // Verificar si hay sesión activa
+    // Verificar si hay sesión activa (solo las últimas 8 horas)
     const sesion = await db.query(
-      `SELECT s.*, e.tipo, e.contenido, e.titulo, e.puntos
+      `SELECT s.*, e.tipo, e.contenido, e.titulo, e.puntos,
+              m.nombre AS materia, pr.nombre AS profesora
        FROM sesiones s
        LEFT JOIN ejercicios e ON e.id = s.ejercicio_activo_id
+       LEFT JOIN planificaciones p ON p.id = s.planificacion_id
+       LEFT JOIN materias m ON m.id = p.materia_id
+       LEFT JOIN profesoras pr ON pr.id = p.profesora_id
        WHERE s.planificacion_id IN (
          SELECT id FROM planificaciones WHERE sala_id = $1
        ) AND s.estado != 'finalizada'
+       AND s.iniciada_en > NOW() - INTERVAL '8 hours'
        ORDER BY s.iniciada_en DESC LIMIT 1`,
       [data.salaId]
     )
@@ -39,6 +44,8 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
 
         socket.emit('sesion:estado', {
           sesionId: row.id,
+          materia: row.materia || '',
+          profesora: row.profesora || '',
           ejercicio: {
             id: row.ejercicio_activo_id,
             titulo: row.titulo,
@@ -50,7 +57,11 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
           puntosYaObtenidos: yaRespondio.rows[0]?.puntos_obtenidos ?? 0
         })
       } else {
-        socket.emit('sesion:estado', { sesionId: row.id })
+        socket.emit('sesion:estado', {
+          sesionId: row.id,
+          materia: row.materia || '',
+          profesora: row.profesora || ''
+        })
       }
     } else {
       socket.emit('sesion:esperando')
@@ -66,13 +77,24 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     )
     const sesion = resultado.rows[0]
 
-    // Obtener la sala de esta planificación
-    const plan = await db.query('SELECT sala_id FROM planificaciones WHERE id = $1', [data.planificacionId])
-    const salaId = plan.rows[0]?.sala_id
+    // Obtener sala, materia y profesora
+    const info = await db.query(
+      `SELECT p.sala_id, m.nombre AS materia, pr.nombre AS profesora
+       FROM planificaciones p
+       JOIN materias m ON m.id = p.materia_id
+       JOIN profesoras pr ON pr.id = p.profesora_id
+       WHERE p.id = $1`,
+      [data.planificacionId]
+    )
+    const salaId = info.rows[0]?.sala_id
 
     if (salaId) {
-      socket.join(`sala:${salaId}`) // profesora se une a la sala para recibir respuestas
-      io.to(`sala:${salaId}`).emit('sesion:iniciada', { sesionId: sesion.id })
+      socket.join(`sala:${salaId}`)
+      io.to(`sala:${salaId}`).emit('sesion:iniciada', {
+        sesionId: sesion.id,
+        materia: info.rows[0]?.materia || '',
+        profesora: info.rows[0]?.profesora || ''
+      })
       socket.emit('sesion:creada', sesion)
     }
   })

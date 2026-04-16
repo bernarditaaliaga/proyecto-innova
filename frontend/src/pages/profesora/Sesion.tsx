@@ -110,7 +110,7 @@ export default function Sesion() {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <div className="px-6 py-4 flex items-center gap-3" style={{ background: 'var(--primary)' }}>
-        <button onClick={() => navigate(`/profesora/planificaciones/${id}`)}
+        <button onClick={() => navigate('/profesora/planificaciones')}
           className="text-white cursor-pointer text-xl">←</button>
         <div className="flex-1">
           <h1 className="text-lg font-bold text-white">{plan.titulo}</h1>

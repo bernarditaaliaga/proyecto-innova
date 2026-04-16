@@ -4,12 +4,12 @@ import { useSocket } from '../../hooks/useSocket'
 import type { Ejercicio } from '../../types'
 import CanvasDibujo from '../../components/CanvasDibujo'
 
-type EstadoAula = 'esperando' | 'ejercicio' | 'respondido'
+type EstadoAula = 'metricas' | 'en_clase' | 'ejercicio' | 'respondido'
 
 export default function Aula() {
   const { usuario, logout } = useAuth()
   const socket = useSocket()
-  const [estado, setEstado] = useState<EstadoAula>('esperando')
+  const [estado, setEstado] = useState<EstadoAula>('metricas')
   const [ejercicio, setEjercicio] = useState<Ejercicio | null>(null)
   const [sesionId, setSesionId] = useState<number | null>(null)
   const [respuesta, setRespuesta] = useState<string | number | null>(null)
@@ -19,6 +19,7 @@ export default function Aula() {
   const [respuestaMatematica, setRespuestaMatematica] = useState('')
   const [respuestasBlancos, setRespuestasBlancos] = useState<string[]>([])
   const [puntosTotal, setPuntosTotal] = useState(0)
+  const [claseInfo, setClaseInfo] = useState<{ materia: string; profesora: string } | null>(null)
   const canvasRef = useRef<{ getImagen: () => string } | null>(null)
 
   useEffect(() => {
@@ -26,15 +27,25 @@ export default function Aula() {
 
     socket.emit('alumno:unirse', { salaId: usuario.salaId, alumnoId: usuario.id })
 
-    socket.on('sesion:esperando', () => setEstado('esperando'))
+    // No hay sesion activa -> metricas
+    socket.on('sesion:esperando', () => {
+      setEstado('metricas')
+      setClaseInfo(null)
+      setSesionId(null)
+    })
 
+    // Hay sesion activa (reconexion)
     socket.on('sesion:estado', (data: {
       sesionId: number
+      materia?: string
+      profesora?: string
       ejercicio?: Ejercicio
       yaRespondio?: boolean
       puntosYaObtenidos?: number
     }) => {
       setSesionId(data.sesionId)
+      setClaseInfo({ materia: data.materia || '', profesora: data.profesora || '' })
+
       if (data.ejercicio && !data.yaRespondio) {
         setEjercicio(data.ejercicio)
         setEstado('ejercicio')
@@ -44,14 +55,20 @@ export default function Aula() {
       } else if (data.yaRespondio) {
         setPuntosObtenidos(data.puntosYaObtenidos ?? 0)
         setEstado('respondido')
+      } else {
+        setEstado('en_clase')
       }
     })
 
-    socket.on('sesion:iniciada', (data: { sesionId: number }) => {
+    // Profesora inicia clase
+    socket.on('sesion:iniciada', (data: { sesionId: number; materia?: string; profesora?: string }) => {
       setSesionId(data.sesionId)
       setPuntosTotal(0)
+      setClaseInfo({ materia: data.materia || '', profesora: data.profesora || '' })
+      setEstado('en_clase')
     })
 
+    // Profesora lanza ejercicio
     socket.on('ejercicio:nuevo', (ej: Ejercicio) => {
       setEjercicio(ej)
       setEstado('ejercicio')
@@ -64,17 +81,21 @@ export default function Aula() {
       setTiempoInicio(Date.now())
     })
 
+    // Profesora cierra ejercicio -> vuelve a pantalla de clase
     socket.on('ejercicio:cerrado', () => {
       setEjercicio(null)
-      setEstado('esperando')
+      setEstado('en_clase')
     })
 
+    // Profesora termina la clase -> vuelve a metricas
     socket.on('sesion:finalizada', () => {
-      setEstado('esperando')
+      setEstado('metricas')
       setEjercicio(null)
       setSesionId(null)
+      setClaseInfo(null)
     })
 
+    // Respuesta confirmada
     socket.on('respuesta:confirmada', (data: { puntosObtenidos: number }) => {
       setPuntosObtenidos(data.puntosObtenidos)
       setPuntosTotal(prev => prev + data.puntosObtenidos)
@@ -133,27 +154,24 @@ export default function Aula() {
     enviarRespuesta({ imagen }, true)
   }
 
-  // PANTALLA DE ESPERA
-  if (estado === 'esperando') {
+  // ═══════════════════════════════════════════
+  // PANTALLA: METRICAS (sin clase activa)
+  // ═══════════════════════════════════════════
+  if (estado === 'metricas') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center"
         style={{ background: 'linear-gradient(160deg, #6C5CE7 0%, #a29bfe 60%, #dfe6e9 100%)' }}>
         <div className="text-center">
-          <div className="text-8xl mb-6 animate-bounce">📚</div>
+          <div className="text-7xl mb-6">🎓</div>
           <h1 className="text-4xl font-bold text-white mb-2">
             Hola, {usuario?.nombre}
           </h1>
           {usuario?.sala && (
-            <p className="text-purple-200 text-lg">{usuario.sala}</p>
+            <p className="text-purple-200 text-lg mb-8">{usuario.sala}</p>
           )}
-          <div className="mt-10 bg-white/20 backdrop-blur rounded-2xl px-8 py-4">
-            <p className="text-white text-lg font-medium">Esperando a la profesora...</p>
-            <div className="flex justify-center gap-2 mt-3">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="w-3 h-3 bg-white rounded-full animate-pulse"
-                  style={{ animationDelay: `${i * 0.2}s` }} />
-              ))}
-            </div>
+          <div className="bg-white/20 backdrop-blur rounded-2xl px-8 py-6">
+            <p className="text-white text-lg font-medium">Metricas</p>
+            <p className="text-purple-200 text-sm mt-1">Proximamente...</p>
           </div>
         </div>
         <button onClick={logout}
@@ -164,7 +182,43 @@ export default function Aula() {
     )
   }
 
-  // PANTALLA RESPONDIDO
+  // ═══════════════════════════════════════════
+  // PANTALLA: EN CLASE (esperando ejercicio)
+  // ═══════════════════════════════════════════
+  if (estado === 'en_clase') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center"
+        style={{ background: 'linear-gradient(160deg, #00B894 0%, #55efc4 60%, #dfe6e9 100%)' }}>
+        <div className="text-center">
+          <div className="text-7xl mb-6">📖</div>
+          <h1 className="text-3xl font-bold text-white mb-1">
+            {claseInfo?.materia || 'Clase en curso'}
+          </h1>
+          <p className="text-green-100 text-lg mb-8">
+            Prof. {claseInfo?.profesora || ''}
+          </p>
+          <div className="bg-white/20 backdrop-blur rounded-2xl px-8 py-4">
+            <p className="text-white text-lg font-medium">Clase en curso</p>
+            <div className="flex justify-center gap-2 mt-3">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-3 h-3 bg-white rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+          </div>
+          {puntosTotal > 0 && (
+            <div className="mt-6 bg-white/20 rounded-2xl px-6 py-3 inline-block">
+              <p className="text-white text-lg font-bold">⭐ {puntosTotal} pts</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════
+  // PANTALLA: RESPONDIDO
+  // ═══════════════════════════════════════════
   if (estado === 'respondido') {
     const esCorrecta = fueCorrecta
 
@@ -188,7 +242,9 @@ export default function Aula() {
     )
   }
 
-  // EJERCICIO ACTIVO
+  // ═══════════════════════════════════════════
+  // PANTALLA: EJERCICIO ACTIVO
+  // ═══════════════════════════════════════════
   if (!ejercicio) return null
 
   return (
@@ -196,7 +252,12 @@ export default function Aula() {
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between"
         style={{ background: 'var(--primary)' }}>
-        <span className="text-white font-bold text-lg">🎓 AprendIA</span>
+        <div>
+          <span className="text-white font-bold text-lg">🎓 AprendIA</span>
+          {claseInfo?.materia && (
+            <p className="text-purple-200 text-xs">{claseInfo.materia}</p>
+          )}
+        </div>
         <div className="text-right">
           <p className="text-white font-semibold">{usuario?.nombre}</p>
           <p className="text-yellow-300 text-sm font-bold">⭐ {puntosTotal} pts</p>
@@ -210,7 +271,7 @@ export default function Aula() {
             {ejercicio.titulo}
           </h2>
 
-          {/* Selección múltiple */}
+          {/* Seleccion multiple */}
           {ejercicio.tipo === 'seleccion_multiple' && (
             <div className="space-y-3">
               {ejercicio.contenido.pregunta && (
@@ -238,7 +299,7 @@ export default function Aula() {
             </div>
           )}
 
-          {/* Matemática desarrollo */}
+          {/* Matematica desarrollo */}
           {ejercicio.tipo === 'matematica_desarrollo' && (
             <div className="space-y-4">
               {ejercicio.contenido.enunciado && (
