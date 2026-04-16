@@ -72,6 +72,7 @@ export interface ContenidoEjercicio {
   tokens?: { texto: string; esBlanco: boolean }[]
   enunciado?: string
   respuesta_correcta?: string | number
+  respuestas_alternativas?: string[]
   url_video?: string
   url_imagen?: string
   instruccion?: string

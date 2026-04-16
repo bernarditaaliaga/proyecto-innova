@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 export interface DatosMatematica {
   enunciado: string
   respuesta_correcta: string
+  respuestas_alternativas?: string[]
   variantes?: { enunciado: string; respuesta_correcta: string }[]
 }
 
@@ -15,6 +16,8 @@ interface Props {
 export default function FormMatematica({ onGuardar, cargando }: Props) {
   const [enunciado, setEnunciado] = useState('')
   const [respuesta, setRespuesta] = useState('')
+  const [alternativas, setAlternativas] = useState<string[]>([])
+  const [nuevaAlt, setNuevaAlt] = useState('')
   const [variantes, setVariantes] = useState<{ enunciado: string; respuesta_correcta: string }[]>([])
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState('')
@@ -42,6 +45,17 @@ export default function FormMatematica({ onGuardar, cargando }: Props) {
     }
   }
 
+  function agregarAlternativa() {
+    const val = nuevaAlt.trim()
+    if (!val || alternativas.includes(val)) return
+    setAlternativas([...alternativas, val])
+    setNuevaAlt('')
+  }
+
+  function quitarAlternativa(idx: number) {
+    setAlternativas(alternativas.filter((_, i) => i !== idx))
+  }
+
   function actualizarVariante(idx: number, campo: 'enunciado' | 'respuesta_correcta', valor: string) {
     setVariantes(vs => vs.map((v, i) => i === idx ? { ...v, [campo]: valor } : v))
   }
@@ -52,7 +66,12 @@ export default function FormMatematica({ onGuardar, cargando }: Props) {
       setError('Completa el ejercicio y la respuesta')
       return
     }
-    onGuardar({ enunciado, respuesta_correcta: respuesta, variantes: variantes.length > 0 ? variantes : undefined })
+    onGuardar({
+      enunciado,
+      respuesta_correcta: respuesta,
+      respuestas_alternativas: alternativas.length > 0 ? alternativas : undefined,
+      variantes: variantes.length > 0 ? variantes : undefined
+    })
   }
 
   return (
@@ -70,6 +89,35 @@ export default function FormMatematica({ onGuardar, cargando }: Props) {
             <input type="text" value={respuesta} onChange={e => setRespuesta(e.target.value)} required
               placeholder="ej: 24 cm²"
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+          </div>
+
+          {/* Respuestas alternativas */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Respuestas alternativas <span className="text-gray-400 font-normal">(también se aceptan como correctas)</span>
+            </label>
+            <div className="flex gap-2">
+              <input type="text" value={nuevaAlt}
+                onChange={e => setNuevaAlt(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarAlternativa() } }}
+                placeholder="ej: 24, 24cm2, 24 cm..."
+                className="flex-1 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700 text-sm" />
+              <button type="button" onClick={agregarAlternativa}
+                className="px-3 py-2 rounded-xl text-sm font-semibold cursor-pointer border-2 border-gray-200 text-gray-500 hover:border-purple-300 hover:text-purple-600">
+                + Agregar
+              </button>
+            </div>
+            {alternativas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {alternativas.map((alt, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-xs font-medium px-2.5 py-1 rounded-full border border-green-200">
+                    {alt}
+                    <button type="button" onClick={() => quitarAlternativa(i)}
+                      className="text-green-400 hover:text-red-500 cursor-pointer text-sm leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <button type="button" onClick={generarVariantes} disabled={generando}

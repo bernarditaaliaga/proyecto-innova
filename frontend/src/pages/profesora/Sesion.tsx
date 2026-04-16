@@ -203,9 +203,9 @@ export default function Sesion() {
 
               {estado === 'ejercicio_activo' && ejercicioActivo && (
                 <>
-                  {/* Ejercicio activo */}
+                  {/* Ejercicio activo — vista profesora */}
                   <div className="bg-white rounded-2xl p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
                         <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-1">
                           Ejercicio activo
@@ -213,14 +213,72 @@ export default function Sesion() {
                         <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
                           {ejercicioActivo.titulo}
                         </h3>
-                        {ejercicioActivo.contenido.pregunta && (
-                          <p className="text-gray-500 text-sm mt-1">{ejercicioActivo.contenido.pregunta}</p>
-                        )}
                       </div>
                       <button onClick={cerrarEjercicio}
                         className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0">
                         ⏹ Cerrar
                       </button>
+                    </div>
+
+                    {/* Contenido del ejercicio según tipo */}
+                    <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                      {/* Selección múltiple */}
+                      {ejercicioActivo.tipo === 'seleccion_multiple' && (
+                        <>
+                          <p className="text-gray-700 font-medium">{ejercicioActivo.contenido.pregunta}</p>
+                          <div className="space-y-1 mt-2">
+                            {(ejercicioActivo.contenido.opciones || []).map((op, i) => (
+                              <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${op.correcta ? 'bg-green-100 border border-green-300' : ''}`}>
+                                <span className="font-bold text-gray-400 text-xs">{String.fromCharCode(65 + i)}.</span>
+                                <span className={op.correcta ? 'text-green-700 font-semibold' : 'text-gray-600'}>{op.texto}</span>
+                                {op.correcta && <span className="text-green-600 text-xs ml-auto">✓ Correcta</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Matemática desarrollo */}
+                      {ejercicioActivo.tipo === 'matematica_desarrollo' && (
+                        <>
+                          <p className="text-gray-700">{ejercicioActivo.contenido.enunciado}</p>
+                          <div className="bg-green-100 border border-green-300 rounded-lg px-3 py-2 mt-2">
+                            <span className="text-xs text-green-600 font-semibold">Respuesta correcta: </span>
+                            <span className="text-green-700 font-bold">{ejercicioActivo.contenido.respuesta_correcta}</span>
+                            {ejercicioActivo.contenido.respuestas_alternativas && (
+                              <p className="text-xs text-green-500 mt-1">
+                                También acepta: {(ejercicioActivo.contenido.respuestas_alternativas as string[]).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Completar texto */}
+                      {ejercicioActivo.tipo === 'completar_texto' && (
+                        <div className="text-gray-700">
+                          {(ejercicioActivo.contenido.tokens || []).map((t, i) => (
+                            <span key={i} className={t.esBlanco ? 'font-bold text-green-700 bg-green-100 px-1 rounded' : ''}>
+                              {t.esBlanco ? `[${t.texto}]` : t.texto}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Dibujo */}
+                      {ejercicioActivo.tipo === 'dibujo' && (
+                        <p className="text-gray-700">{ejercicioActivo.contenido.instruccion}</p>
+                      )}
+
+                      {/* Video */}
+                      {ejercicioActivo.tipo === 'video_youtube' && (
+                        <p className="text-gray-700">{ejercicioActivo.contenido.url_video}</p>
+                      )}
+
+                      {/* Imagen */}
+                      {ejercicioActivo.tipo === 'mostrar_imagen' && ejercicioActivo.contenido.url_imagen && (
+                        <img src={ejercicioActivo.contenido.url_imagen} alt="" className="max-h-32 rounded-lg object-contain" />
+                      )}
                     </div>
                   </div>
 

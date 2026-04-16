@@ -147,9 +147,13 @@ export default function Aula() {
 
   function handleMatematica() {
     if (!respuestaMatematica.trim() || !ejercicio) return
-    const correcta = String(ejercicio.contenido.respuesta_correcta || '').trim().toLowerCase()
     const dada = respuestaMatematica.trim().toLowerCase()
-    enviarRespuesta({ respuesta: respuestaMatematica }, dada === correcta)
+    const correcta = String(ejercicio.contenido.respuesta_correcta || '').trim().toLowerCase()
+    // Verificar respuesta principal y alternativas
+    const alternativas = (ejercicio.contenido.respuestas_alternativas || []) as string[]
+    const todasLasRespuestas = [correcta, ...alternativas.map(a => a.trim().toLowerCase())]
+    const esCorrecta = todasLasRespuestas.includes(dada)
+    enviarRespuesta({ respuesta: respuestaMatematica }, esCorrecta)
   }
 
   function handleBlancos() {
