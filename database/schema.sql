@@ -15,8 +15,9 @@ CREATE TABLE IF NOT EXISTS profesoras (
 CREATE TABLE IF NOT EXISTS salas (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(100) NOT NULL,        -- ej: "3ro A"
-  codigo VARCHAR(20) UNIQUE NOT NULL,  -- ej: "3A-2024"
-  profesora_id INTEGER REFERENCES profesoras(id) ON DELETE SET NULL,
+  codigo VARCHAR(20) UNIQUE NOT NULL,  -- ej: "3A-2026"
+  profesora_id INTEGER REFERENCES profesoras(id) ON DELETE SET NULL, -- legacy: creador
+  anio INTEGER DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
   creado_en TIMESTAMP DEFAULT NOW()
 );
 
@@ -27,7 +28,10 @@ CREATE TABLE IF NOT EXISTS alumnos (
   apellido VARCHAR(100) NOT NULL,
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  sala_id INTEGER REFERENCES salas(id) ON DELETE SET NULL,
+  sala_id INTEGER REFERENCES salas(id) ON DELETE SET NULL, -- legacy
+  genero VARCHAR(1) CHECK (genero IN ('M', 'F')),
+  nombre_padre VARCHAR(100),
+  nombre_madre VARCHAR(100),
   email_apoderado VARCHAR(100),
   creado_en TIMESTAMP DEFAULT NOW()
 );
@@ -40,6 +44,19 @@ CREATE TABLE IF NOT EXISTS alumno_salas (
   creado_en TIMESTAMP DEFAULT NOW(),
   UNIQUE(alumno_id, sala_id)
 );
+
+-- Relación profesoras-salas con rol (jefe o materia)
+CREATE TABLE IF NOT EXISTS profesora_salas (
+  id SERIAL PRIMARY KEY,
+  profesora_id INTEGER REFERENCES profesoras(id) ON DELETE CASCADE,
+  sala_id INTEGER REFERENCES salas(id) ON DELETE CASCADE,
+  rol VARCHAR(20) NOT NULL DEFAULT 'materia', -- 'jefe' | 'materia'
+  creado_en TIMESTAMP DEFAULT NOW(),
+  UNIQUE(profesora_id, sala_id)
+);
+-- Solo 1 jefe por sala
+CREATE UNIQUE INDEX IF NOT EXISTS idx_un_jefe_por_sala
+  ON profesora_salas (sala_id) WHERE rol = 'jefe';
 
 -- Materias (globales, no por sala)
 CREATE TABLE IF NOT EXISTS materias (
@@ -151,7 +168,7 @@ CREATE OR REPLACE VIEW rendimiento_alumno AS
 SELECT
   a.id AS alumno_id,
   a.nombre || ' ' || a.apellido AS alumno,
-  a.sala_id,
+  als.sala_id,
   m.id AS materia_id,
   m.nombre AS materia,
   t.nombre AS tema,
@@ -164,9 +181,10 @@ SELECT
   ) AS porcentaje,
   AVG(r.tiempo_segundos) AS tiempo_promedio
 FROM alumnos a
+JOIN alumno_salas als ON als.alumno_id = a.id
 JOIN respuestas r ON r.alumno_id = a.id
 JOIN ejercicios e ON e.id = r.ejercicio_id
-JOIN planificaciones p ON p.id = e.planificacion_id
+JOIN planificaciones p ON p.id = e.planificacion_id AND p.sala_id = als.sala_id
 JOIN materias m ON m.id = p.materia_id
 LEFT JOIN temas t ON t.id = e.tema_id
-GROUP BY a.id, a.nombre, a.apellido, a.sala_id, m.id, m.nombre, t.nombre;
+GROUP BY a.id, a.nombre, a.apellido, als.sala_id, m.id, m.nombre, t.nombre;

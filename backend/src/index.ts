@@ -94,7 +94,61 @@ async function initDB() {
         UNIQUE(alumno_id, sala_id)
       )
     `)
-    console.log('Tabla alumno_salas verificada')
+
+    // Tabla profesora_salas (profesor jefe vs profesor de materia)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS profesora_salas (
+        id SERIAL PRIMARY KEY,
+        profesora_id INTEGER REFERENCES profesoras(id) ON DELETE CASCADE,
+        sala_id INTEGER REFERENCES salas(id) ON DELETE CASCADE,
+        rol VARCHAR(20) NOT NULL DEFAULT 'materia',
+        creado_en TIMESTAMP DEFAULT NOW(),
+        UNIQUE(profesora_id, sala_id)
+      )
+    `)
+    // Solo 1 jefe por sala
+    await db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_un_jefe_por_sala
+      ON profesora_salas (sala_id) WHERE rol = 'jefe'
+    `)
+
+    // Agregar campo anio a salas si no existe
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='salas' AND column_name='anio') THEN
+          ALTER TABLE salas ADD COLUMN anio INTEGER DEFAULT EXTRACT(YEAR FROM CURRENT_DATE);
+        END IF;
+      END $$
+    `)
+
+    // Agregar campos de perfil a alumnos si no existen
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='alumnos' AND column_name='genero') THEN
+          ALTER TABLE alumnos ADD COLUMN genero VARCHAR(1) CHECK (genero IN ('M', 'F'));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='alumnos' AND column_name='nombre_padre') THEN
+          ALTER TABLE alumnos ADD COLUMN nombre_padre VARCHAR(100);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='alumnos' AND column_name='nombre_madre') THEN
+          ALTER TABLE alumnos ADD COLUMN nombre_madre VARCHAR(100);
+        END IF;
+      END $$
+    `)
+
+    // Migrar: si hay salas con profesora_id que no están en profesora_salas, insertarlas como jefe
+    await db.query(`
+      INSERT INTO profesora_salas (profesora_id, sala_id, rol)
+      SELECT profesora_id, id, 'jefe' FROM salas
+      WHERE profesora_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM profesora_salas ps
+          WHERE ps.sala_id = salas.id AND ps.rol = 'jefe'
+        )
+      ON CONFLICT DO NOTHING
+    `)
+
+    console.log('Tablas verificadas (alumno_salas, profesora_salas, campos perfil)')
 
     // Agregar UNIQUE a materias.nombre si no existe
     await db.query(`

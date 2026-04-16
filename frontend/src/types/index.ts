@@ -14,6 +14,8 @@ export interface Sala {
   nombre: string
   codigo: string
   total_alumnos: number
+  rol?: 'jefe' | 'materia'
+  anio?: number
 }
 
 export interface Alumno {
@@ -22,7 +24,11 @@ export interface Alumno {
   apellido: string
   username: string
   email_apoderado?: string
-  sala_id: number
+  sala_id?: number
+  genero?: 'M' | 'F'
+  nombre_padre?: string
+  nombre_madre?: string
+  creado_en?: string
 }
 
 export interface Materia {
