@@ -47,25 +47,6 @@ db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE
   .then(r => console.log(`Sesiones huérfanas cerradas: ${r.rowCount}`))
   .catch(() => {})
 
-// Endpoint temporal para resetear la BD (quitar después de usar)
-app.post('/api/admin/reset', async (req, res) => {
-  if (req.headers['x-reset-key'] !== 'reset-aprendia-2026') {
-    res.status(403).json({ error: 'No autorizado' }); return
-  }
-  await db.query(`
-    TRUNCATE respuestas, variantes_ejercicio, sesiones, ejercicios,
-             planificaciones, alumno_salas, alumnos, temas, materias, salas, profesoras
-    CASCADE
-  `)
-  // Re-insertar materias base
-  await db.query(`
-    INSERT INTO materias (nombre, color, icono) VALUES
-    ('Matemáticas', '#6C5CE7', '🔢'),
-    ('Lenguaje', '#00B894', '✏️'),
-    ('Ciencias', '#FDCB6E', '🔬')
-  `)
-  res.json({ ok: true, mensaje: 'BD reseteada con materias base' })
-})
 
 // Socket.io
 io.on('connection', (socket) => {
