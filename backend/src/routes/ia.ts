@@ -120,11 +120,17 @@ Responde SOLO con JSON: {"correcto": true/false, "comentario": "breve feedback p
       const data = JSON.parse(match[0])
       return { correcto: !!data.correcto, comentario: data.comentario || '' }
     }
-    return { correcto: true, comentario: 'Buen trabajo' }
-  } catch (e) {
-    console.error('[IA] Error evaluando dibujo:', e)
-    // Si falla la IA, marcarlo como pendiente de revisión
-    return { correcto: true, comentario: 'Pendiente de revisión' }
+    console.warn('[IA] No se encontró JSON en respuesta de evaluación dibujo')
+    return { correcto: false, comentario: 'No se pudo evaluar, pendiente de revisión' }
+  } catch (e: unknown) {
+    const err = e as { status?: number; message?: string; error?: { type?: string; message?: string } }
+    console.error('[IA] Error evaluando dibujo:')
+    console.error('[IA]   Status:', err.status)
+    console.error('[IA]   Message:', err.message)
+    console.error('[IA]   Error type:', err.error?.type)
+    console.error('[IA]   Error detail:', err.error?.message)
+    // Si falla la IA, marcar como incorrecto (la profesora puede corregir después)
+    return { correcto: false, comentario: 'Error al evaluar, la profesora revisará tu dibujo' }
   }
 }
 

@@ -2,7 +2,38 @@ import { Server, Socket } from 'socket.io'
 import { db } from '../db'
 import { generarVariantesEjercicio, evaluarDibujoConIA } from '../routes/ia'
 
+// Mapeo de socketId -> { sesionId, salaId, timer } para auto-finalizar
+const profesorasActivas = new Map<string, { sesionId: number; salaId: number; timer?: ReturnType<typeof setTimeout> }>()
+
 export function registrarEventosSesion(io: Server, socket: Socket) {
+
+  // Cuando la profesora se desconecta, esperar 30s y finalizar sesión
+  socket.on('disconnect', async () => {
+    const datos = profesorasActivas.get(socket.id)
+    if (!datos) return
+
+    console.log(`[Socket] Profesora desconectada, esperando 30s antes de finalizar sesión ${datos.sesionId}`)
+    datos.timer = setTimeout(async () => {
+      try {
+        // Verificar que la sesión no fue retomada por otro socket
+        const sesion = await db.query(
+          `SELECT estado FROM sesiones WHERE id = $1`,
+          [datos.sesionId]
+        )
+        if (sesion.rows[0]?.estado && sesion.rows[0].estado !== 'finalizada') {
+          console.log(`[Socket] Auto-finalizando sesión ${datos.sesionId} (profesora no reconectó)`)
+          await db.query(
+            `UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE id = $1`,
+            [datos.sesionId]
+          )
+          io.to(`sala:${datos.salaId}`).emit('sesion:finalizada')
+        }
+      } catch (e) {
+        console.error('[Socket] Error auto-finalizando sesión:', e)
+      }
+      profesorasActivas.delete(socket.id)
+    }, 30_000)
+  })
 
   // Alumno se une a su sala
   socket.on('alumno:unirse', async (data: { salaId: number; alumnoId: number }) => {
@@ -73,6 +104,16 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
   socket.on('profesora:reconectar', async (data: { salaId: number; sesionId: number }) => {
     console.log(`[Socket] Profesora reconecta a sala:${data.salaId}`)
     socket.join(`sala:${data.salaId}`)
+
+    // Cancelar auto-finalización si estaba pendiente
+    for (const [oldSocketId, datos] of profesorasActivas.entries()) {
+      if (datos.sesionId === data.sesionId && datos.timer) {
+        console.log(`[Socket] Cancelando auto-finalización de sesión ${data.sesionId} (profesora reconectó)`)
+        clearTimeout(datos.timer)
+        profesorasActivas.delete(oldSocketId)
+      }
+    }
+    profesorasActivas.set(socket.id, { sesionId: data.sesionId, salaId: data.salaId })
   })
 
   // Profesora inicia sesión
@@ -106,6 +147,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
         profesora: info.rows[0]?.profesora || ''
       })
       socket.emit('sesion:creada', sesion)
+      profesorasActivas.set(socket.id, { sesionId: sesion.id, salaId })
     }
   })
 
@@ -205,6 +247,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     let comentarioIA = ''
 
     // Evaluación IA para dibujos
+    console.log(`[Socket] Respuesta tipo=${ejTipo}, evaluarConIA=${data.evaluarConIA}, tiene instruccion=${!!data.instruccionDibujo}`)
     if (ejTipo === 'dibujo' && data.evaluarConIA) {
       try {
         const contenidoData = data.contenido as { imagen?: string }
@@ -259,5 +302,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
       [data.sesionId]
     )
     io.to(`sala:${data.salaId}`).emit('sesion:finalizada')
+    // Limpiar tracking de profesora activa
+    profesorasActivas.delete(socket.id)
   })
 }
