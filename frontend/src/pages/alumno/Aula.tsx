@@ -168,9 +168,11 @@ export default function Aula() {
   function handleDibujo() {
     if (!canvasRef.current || !ejercicio) return
     const imagen = canvasRef.current.getImagen()
-    const evaluarConIA = !!ejercicio.contenido.evaluar_con_ia
+    // Por defecto evaluar con IA, a menos que explícitamente esté desactivado
+    const evaluarConIA = ejercicio.contenido.evaluar_con_ia !== false
     const instruccionDibujo = ejercicio.contenido.instruccion || ''
-    enviarRespuesta({ imagen }, !evaluarConIA, evaluarConIA ? { evaluarConIA: true, instruccionDibujo } : {})
+    // Enviar esCorrecta=false (la IA decidirá), y pasar los datos para evaluación
+    enviarRespuesta({ imagen }, false, { evaluarConIA, instruccionDibujo })
   }
 
   // ═══════════════════════════════════════════

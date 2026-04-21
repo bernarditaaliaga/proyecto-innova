@@ -225,7 +225,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (alumno_id, ejercicio_id, sesion_id) DO NOTHING`,
       [data.alumnoId, data.ejercicioId, data.sesionId,
-       JSON.stringify(data.contenido), data.esCorrecta, puntosObtenidos, data.tiempoSegundos]
+       JSON.stringify(data.contenido), esCorrecta, puntosObtenidos, data.tiempoSegundos]
     )
 
     // Obtener nombre del alumno y sala para notificar a la profesora
@@ -243,7 +243,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
         alumnoId: data.alumnoId,
         nombre: `${a.nombre} ${a.apellido}`,
         respondio: true,
-        esCorrecta: data.esCorrecta,
+        esCorrecta,
         puntos: puntosObtenidos
       })
     }
