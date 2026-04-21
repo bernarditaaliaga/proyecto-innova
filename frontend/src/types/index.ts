@@ -82,6 +82,7 @@ export interface ContenidoEjercicio {
   url_video?: string
   url_imagen?: string
   instruccion?: string
+  evaluar_con_ia?: boolean
 }
 
 export interface Sesion {

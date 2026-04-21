@@ -655,16 +655,16 @@ export default function Sesion() {
                         </div>
 
                         {/* Mostrar dibujo si es tipo dibujo */}
-                        {r.tipo === 'dibujo' && contenido?.imagen && (
-                          <img src={contenido.imagen as string} alt="Dibujo"
+                        {r.tipo === 'dibujo' && typeof contenido?.imagen === 'string' && (
+                          <img src={contenido.imagen} alt="Dibujo"
                             className="rounded-lg border max-h-48 object-contain w-full bg-gray-50 mb-2" />
                         )}
 
                         {/* Mostrar respuesta texto */}
-                        {r.tipo === 'matematica_desarrollo' && contenido?.respuesta && (
+                        {r.tipo === 'matematica_desarrollo' && contenido?.respuesta != null && (
                           <p className="text-sm text-gray-600 mb-2">Respuesta: <strong>{String(contenido.respuesta)}</strong></p>
                         )}
-                        {r.tipo === 'seleccion_multiple' && contenido?.texto && (
+                        {r.tipo === 'seleccion_multiple' && contenido?.texto != null && (
                           <p className="text-sm text-gray-600 mb-2">Seleccionó: <strong>{String(contenido.texto)}</strong></p>
                         )}
 
