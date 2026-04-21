@@ -111,4 +111,30 @@ router.delete('/:id/ejercicios/:ejercicioId', verificarToken, soloProfesor, asyn
   res.json({ ok: true })
 })
 
+// Editar puntos de una respuesta (evaluación manual)
+router.put('/respuestas/:respuestaId', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { puntosObtenidos, esCorreecto } = req.body
+  await db.query(
+    `UPDATE respuestas SET puntos_obtenidos = $1, es_correcto = $2 WHERE id = $3`,
+    [puntosObtenidos, esCorreecto ?? (puntosObtenidos > 0), req.params.respuestaId]
+  )
+  res.json({ ok: true })
+})
+
+// Obtener respuestas de un ejercicio en una sesión (para revisión)
+router.get('/:id/ejercicios/:ejercicioId/respuestas', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const resultado = await db.query(
+    `SELECT r.id, r.alumno_id, a.nombre || ' ' || a.apellido AS alumno,
+            r.contenido, r.es_correcto, r.puntos_obtenidos, r.tiempo_segundos,
+            e.puntos AS puntos_max, e.tipo, e.contenido AS ejercicio_contenido
+     FROM respuestas r
+     JOIN alumnos a ON a.id = r.alumno_id
+     JOIN ejercicios e ON e.id = r.ejercicio_id
+     WHERE r.ejercicio_id = $1
+     ORDER BY a.apellido, a.nombre`,
+    [req.params.ejercicioId]
+  )
+  res.json(resultado.rows)
+})
+
 export default router

@@ -20,6 +20,7 @@ export default function Aula() {
   const [respuestasBlancos, setRespuestasBlancos] = useState<string[]>([])
   const [puntosTotal, setPuntosTotal] = useState(0)
   const [claseInfo, setClaseInfo] = useState<{ materia: string; profesora: string } | null>(null)
+  const [comentarioIA, setComentarioIA] = useState('')
   const canvasRef = useRef<{ getImagen: () => string } | null>(null)
 
   useEffect(() => {
@@ -104,9 +105,10 @@ export default function Aula() {
     })
 
     // Respuesta confirmada
-    socket.on('respuesta:confirmada', (data: { puntosObtenidos: number }) => {
+    socket.on('respuesta:confirmada', (data: { puntosObtenidos: number; comentarioIA?: string }) => {
       setPuntosObtenidos(data.puntosObtenidos)
       setPuntosTotal(prev => prev + data.puntosObtenidos)
+      if (data.comentarioIA) setComentarioIA(data.comentarioIA)
       setEstado('respondido')
     })
 
@@ -122,10 +124,11 @@ export default function Aula() {
     }
   }, [socket, usuario])
 
-  function enviarRespuesta(contenido: unknown, esCorrecta: boolean) {
+  function enviarRespuesta(contenido: unknown, esCorrecta: boolean, extra?: Record<string, unknown>) {
     if (!socket || !ejercicio || !sesionId || !usuario) return
     const tiempoSegundos = Math.round((Date.now() - tiempoInicio) / 1000)
     setFueCorrecta(esCorrecta)
+    setComentarioIA('')
 
     socket.emit('alumno:responder', {
       alumnoId: usuario.id,
@@ -133,7 +136,8 @@ export default function Aula() {
       sesionId,
       contenido,
       esCorrecta,
-      tiempoSegundos
+      tiempoSegundos,
+      ...extra
     })
   }
 
@@ -164,7 +168,9 @@ export default function Aula() {
   function handleDibujo() {
     if (!canvasRef.current || !ejercicio) return
     const imagen = canvasRef.current.getImagen()
-    enviarRespuesta({ imagen }, true)
+    const evaluarConIA = !!ejercicio.contenido.evaluar_con_ia
+    const instruccionDibujo = ejercicio.contenido.instruccion || ''
+    enviarRespuesta({ imagen }, !evaluarConIA, evaluarConIA ? { evaluarConIA: true, instruccionDibujo } : {})
   }
 
   // ═══════════════════════════════════════════
@@ -245,6 +251,11 @@ export default function Aula() {
           </h2>
           {puntosObtenidos !== null && puntosObtenidos > 0 && (
             <p className="text-2xl font-semibold opacity-90">+{puntosObtenidos} puntos</p>
+          )}
+          {comentarioIA && (
+            <div className="mt-4 bg-white/20 rounded-2xl px-6 py-3 max-w-sm mx-auto">
+              <p className="text-sm opacity-90">💬 {comentarioIA}</p>
+            </div>
           )}
           <div className="mt-4 bg-white/20 rounded-2xl px-6 py-3 inline-block">
             <p className="text-lg font-bold">⭐ Total: {puntosTotal} pts</p>

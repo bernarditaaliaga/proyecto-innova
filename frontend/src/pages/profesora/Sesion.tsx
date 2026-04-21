@@ -44,6 +44,7 @@ export default function Sesion() {
   const [ejEnunciado, setEjEnunciado] = useState('')
   const [ejRespuesta, setEjRespuesta] = useState('')
   const [ejInstruccion, setEjInstruccion] = useState('')
+  const [ejEvaluarConIA, setEjEvaluarConIA] = useState(true)
 
   useEffect(() => { cargar() }, [id])
 
@@ -110,6 +111,7 @@ export default function Sesion() {
     setEjEnunciado('')
     setEjRespuesta('')
     setEjInstruccion('')
+    setEjEvaluarConIA(true)
   }
 
   async function crearEjercicioEnVivo(e: React.FormEvent) {
@@ -126,7 +128,7 @@ export default function Sesion() {
       if (!ejEnunciado || !ejRespuesta) { setNuevoEjError('Completa enunciado y respuesta'); return }
       contenido = { enunciado: ejEnunciado, respuesta_correcta: ejRespuesta }
     } else if (nuevoEjTipo === 'dibujo') {
-      contenido = { instruccion: ejInstruccion }
+      contenido = { instruccion: ejInstruccion, evaluar_con_ia: ejEvaluarConIA }
     }
 
     setNuevoEjCargando(true)
@@ -177,6 +179,38 @@ export default function Sesion() {
     socket.emit('profesora:finalizar_sesion', { sesionId, salaId: plan.sala_id })
     setEstado('finalizada')
     setConfirmFinalizar(false)
+  }
+
+  // Revisar respuestas
+  const [modalRevisar, setModalRevisar] = useState(false)
+  const [respuestasDetalle, setRespuestasDetalle] = useState<{
+    id: number; alumno_id: number; alumno: string; contenido: unknown;
+    es_correcto: boolean; puntos_obtenidos: number; puntos_max: number;
+    tipo: string; ejercicio_contenido: unknown; tiempo_segundos: number
+  }[]>([])
+  const [cargandoRevisar, setCargandoRevisar] = useState(false)
+
+  async function abrirRevisar() {
+    if (!ejercicioActivo || !plan) return
+    setCargandoRevisar(true)
+    setModalRevisar(true)
+    try {
+      const { data } = await api.get(`/api/planificaciones/${plan.id}/ejercicios/${ejercicioActivo.id}/respuestas`)
+      setRespuestasDetalle(data)
+    } catch { setRespuestasDetalle([]) }
+    finally { setCargandoRevisar(false) }
+  }
+
+  async function editarPuntos(respuestaId: number, puntosObtenidos: number) {
+    try {
+      await api.put(`/api/planificaciones/respuestas/${respuestaId}`, {
+        puntosObtenidos,
+        esCorreecto: puntosObtenidos > 0
+      })
+      setRespuestasDetalle(prev => prev.map(r =>
+        r.id === respuestaId ? { ...r, puntos_obtenidos: puntosObtenidos, es_correcto: puntosObtenidos > 0 } : r
+      ))
+    } catch { /* silenciar */ }
   }
 
   const respondieron = respuestas.filter(r => r.respondio).length
@@ -294,10 +328,18 @@ export default function Sesion() {
                           {ejercicioActivo.titulo}
                         </h3>
                       </div>
-                      <button onClick={cerrarEjercicio}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0">
-                        ⏹ Cerrar
-                      </button>
+                      <div className="flex gap-2 flex-shrink-0">
+                        {respondieron > 0 && (
+                          <button onClick={abrirRevisar}
+                            className="bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm font-semibold px-4 py-2 rounded-xl cursor-pointer">
+                            📋 Revisar
+                          </button>
+                        )}
+                        <button onClick={cerrarEjercicio}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl cursor-pointer">
+                          ⏹ Cerrar
+                        </button>
+                      </div>
                     </div>
 
                     {/* Contenido del ejercicio según tipo */}
@@ -546,11 +588,24 @@ export default function Sesion() {
 
                   {/* Dibujo */}
                   {nuevoEjTipo === 'dibujo' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Instruccion</label>
-                      <input type="text" value={ejInstruccion} onChange={e => setEjInstruccion(e.target.value)} required
-                        placeholder="ej: Dibuja el ciclo del agua"
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Instruccion</label>
+                        <input type="text" value={ejInstruccion} onChange={e => setEjInstruccion(e.target.value)} required
+                          placeholder="ej: Dibuja el ciclo del agua"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      </div>
+                      <div className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
+                        <input type="checkbox" id="evaluar-ia-vivo" checked={ejEvaluarConIA}
+                          onChange={e => setEjEvaluarConIA(e.target.checked)}
+                          className="w-4 h-4 cursor-pointer accent-purple-600" />
+                        <label htmlFor="evaluar-ia-vivo" className="cursor-pointer flex-1">
+                          <span className="text-sm font-medium text-gray-700">Evaluar con IA</span>
+                          <p className="text-xs text-gray-400">
+                            {ejEvaluarConIA ? 'La IA evalúa automáticamente' : 'Revisión manual después'}
+                          </p>
+                        </label>
+                      </div>
                     </div>
                   )}
 
@@ -561,6 +616,81 @@ export default function Sesion() {
                     {nuevoEjCargando ? 'Guardando...' : 'Crear ejercicio'}
                   </button>
                 </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal revisar respuestas */}
+      {modalRevisar && (
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl my-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+              <h3 className="font-bold" style={{ color: 'var(--text)' }}>
+                Respuestas — {ejercicioActivo?.titulo}
+              </h3>
+              <button onClick={() => setModalRevisar(false)}
+                className="text-gray-400 hover:text-red-500 cursor-pointer text-2xl font-bold">×</button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+              {cargandoRevisar ? (
+                <p className="text-gray-400 text-center py-8">Cargando...</p>
+              ) : respuestasDetalle.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No hay respuestas aún</p>
+              ) : (
+                <div className="space-y-3">
+                  {respuestasDetalle.map(r => {
+                    const contenido = r.contenido as Record<string, unknown>
+                    return (
+                      <div key={r.id} className="border rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-700">{r.alumno}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.es_correcto ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                              {r.es_correcto ? 'Correcto' : 'Incorrecto'}
+                            </span>
+                            <span className="text-xs text-gray-400">{r.tiempo_segundos}s</span>
+                          </div>
+                        </div>
+
+                        {/* Mostrar dibujo si es tipo dibujo */}
+                        {r.tipo === 'dibujo' && contenido?.imagen && (
+                          <img src={contenido.imagen as string} alt="Dibujo"
+                            className="rounded-lg border max-h-48 object-contain w-full bg-gray-50 mb-2" />
+                        )}
+
+                        {/* Mostrar respuesta texto */}
+                        {r.tipo === 'matematica_desarrollo' && contenido?.respuesta && (
+                          <p className="text-sm text-gray-600 mb-2">Respuesta: <strong>{String(contenido.respuesta)}</strong></p>
+                        )}
+                        {r.tipo === 'seleccion_multiple' && contenido?.texto && (
+                          <p className="text-sm text-gray-600 mb-2">Seleccionó: <strong>{String(contenido.texto)}</strong></p>
+                        )}
+
+                        {/* Editar puntos */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-500">Puntos:</span>
+                          <input type="number" min={0} max={r.puntos_max}
+                            value={r.puntos_obtenidos}
+                            onChange={e => {
+                              const val = Math.min(Number(e.target.value), r.puntos_max)
+                              setRespuestasDetalle(prev => prev.map(x =>
+                                x.id === r.id ? { ...x, puntos_obtenidos: val } : x
+                              ))
+                            }}
+                            className="w-16 px-2 py-1 rounded-lg border border-gray-200 text-center text-sm font-bold" />
+                          <span className="text-xs text-gray-400">/ {r.puntos_max}</span>
+                          <button onClick={() => editarPuntos(r.id, r.puntos_obtenidos)}
+                            className="text-xs px-3 py-1 rounded-lg font-semibold cursor-pointer text-white"
+                            style={{ background: 'var(--primary)' }}>
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           </div>

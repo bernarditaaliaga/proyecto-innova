@@ -32,6 +32,7 @@ export default function EditarPlan() {
 
   // Campos simples
   const [instruccion, setInstruccion] = useState('')
+  const [evaluarConIA, setEvaluarConIA] = useState(true)
   const [urlVideo, setUrlVideo] = useState('')
   const [urlImagen, setUrlImagen] = useState('')
   const [subiendoImagen, setSubiendoImagen] = useState(false)
@@ -54,6 +55,7 @@ export default function EditarPlan() {
     setPuntos(10)
     setTemaId('')
     setInstruccion('')
+    setEvaluarConIA(true)
     setUrlVideo('')
     setUrlImagen('')
     setError('')
@@ -84,7 +86,7 @@ export default function EditarPlan() {
     e.preventDefault()
     if (!titulo.trim()) { setError('Escribe el título'); return }
     let contenido: unknown
-    if (tipo === 'dibujo') contenido = { instruccion }
+    if (tipo === 'dibujo') contenido = { instruccion, evaluar_con_ia: evaluarConIA }
     else if (tipo === 'video_youtube') contenido = { url_video: urlVideo }
     else if (tipo === 'mostrar_imagen') contenido = { url_imagen: urlImagen }
     await guardarConContenido(contenido)
@@ -271,11 +273,26 @@ export default function EditarPlan() {
               {(tipo === 'dibujo' || tipo === 'video_youtube' || tipo === 'mostrar_imagen') && (
                 <form onSubmit={handleSimple} className="space-y-4">
                   {tipo === 'dibujo' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Instrucción para el alumno</label>
-                      <input type="text" value={instruccion} onChange={e => setInstruccion(e.target.value)} required
-                        placeholder="ej: Dibuja el ciclo del agua"
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Instrucción para el alumno</label>
+                        <input type="text" value={instruccion} onChange={e => setInstruccion(e.target.value)} required
+                          placeholder="ej: Dibuja el ciclo del agua"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                      </div>
+                      <div className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
+                        <input type="checkbox" id="evaluar-ia" checked={evaluarConIA}
+                          onChange={e => setEvaluarConIA(e.target.checked)}
+                          className="w-4 h-4 cursor-pointer accent-purple-600" />
+                        <label htmlFor="evaluar-ia" className="cursor-pointer flex-1">
+                          <span className="text-sm font-medium text-gray-700">Evaluar con IA</span>
+                          <p className="text-xs text-gray-400">
+                            {evaluarConIA
+                              ? 'La IA evaluará el dibujo automáticamente'
+                              : 'Tú revisarás y puntuarás manualmente después de la clase'}
+                          </p>
+                        </label>
+                      </div>
                     </div>
                   )}
                   {tipo === 'video_youtube' && (

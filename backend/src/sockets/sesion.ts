@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io'
 import { db } from '../db'
-import { generarVariantesEjercicio } from '../routes/ia'
+import { generarVariantesEjercicio, evaluarDibujoConIA } from '../routes/ia'
 
 export function registrarEventosSesion(io: Server, socket: Socket) {
 
@@ -194,10 +194,31 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     contenido: unknown
     esCorrecta: boolean
     tiempoSegundos: number
+    evaluarConIA?: boolean
+    instruccionDibujo?: string
   }) => {
-    const ejercicio = await db.query('SELECT puntos FROM ejercicios WHERE id = $1', [data.ejercicioId])
+    const ejercicio = await db.query('SELECT puntos, tipo, contenido AS ej_contenido FROM ejercicios WHERE id = $1', [data.ejercicioId])
     const puntosMax = ejercicio.rows[0]?.puntos || 0
-    const puntosObtenidos = data.esCorrecta ? puntosMax : 0
+    const ejTipo = ejercicio.rows[0]?.tipo
+    let esCorrecta = data.esCorrecta
+    let comentarioIA = ''
+
+    // Evaluación IA para dibujos
+    if (ejTipo === 'dibujo' && data.evaluarConIA) {
+      try {
+        const contenidoData = data.contenido as { imagen?: string }
+        const instruccion = data.instruccionDibujo || ejercicio.rows[0]?.ej_contenido?.instruccion || ''
+        if (contenidoData?.imagen && instruccion) {
+          const resultado = await evaluarDibujoConIA(instruccion, contenidoData.imagen)
+          esCorrecta = resultado.correcto
+          comentarioIA = resultado.comentario
+        }
+      } catch (e) {
+        console.error('[Socket] Error evaluando dibujo con IA:', e)
+      }
+    }
+
+    const puntosObtenidos = esCorrecta ? puntosMax : 0
 
     await db.query(
       `INSERT INTO respuestas (alumno_id, ejercicio_id, sesion_id, contenido, es_correcto, puntos_obtenidos, tiempo_segundos)
@@ -227,7 +248,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
       })
     }
 
-    socket.emit('respuesta:confirmada', { puntosObtenidos })
+    socket.emit('respuesta:confirmada', { puntosObtenidos, comentarioIA: comentarioIA || '' })
   })
 
   // Profesora finaliza la sesión

@@ -84,6 +84,50 @@ Responde SOLO con JSON válido:
   }
 }
 
+// Evaluar un dibujo con IA
+export async function evaluarDibujoConIA(
+  instruccion: string,
+  imagenBase64: string
+): Promise<{ correcto: boolean; comentario: string }> {
+  try {
+    // Extraer el base64 puro (quitar "data:image/png;base64,")
+    const base64Data = imagenBase64.replace(/^data:image\/\w+;base64,/, '')
+
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: base64Data }
+          },
+          {
+            type: 'text',
+            text: `Eres un profesor evaluando el dibujo de un niño de 8-12 años.
+La instrucción era: "${instruccion}"
+Evalúa si el dibujo cumple razonablemente con lo pedido. Sé generoso — si se nota el esfuerzo y se relaciona con el tema, es correcto.
+Responde SOLO con JSON: {"correcto": true/false, "comentario": "breve feedback positivo en español"}`
+          }
+        ]
+      }]
+    })
+
+    const texto = message.content[0].type === 'text' ? message.content[0].text : ''
+    const match = texto.match(/\{[\s\S]*\}/)
+    if (match) {
+      const data = JSON.parse(match[0])
+      return { correcto: !!data.correcto, comentario: data.comentario || '' }
+    }
+    return { correcto: true, comentario: 'Buen trabajo' }
+  } catch (e) {
+    console.error('[IA] Error evaluando dibujo:', e)
+    // Si falla la IA, marcarlo como pendiente de revisión
+    return { correcto: true, comentario: 'Pendiente de revisión' }
+  }
+}
+
 // Endpoint para previsualizar variantes desde el editor de plan
 router.post('/variantes', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const { tipo, contenido, cantidad = 5 } = req.body
@@ -93,6 +137,17 @@ router.post('/variantes', verificarToken, soloProfesor, async (req: AuthRequest,
   if (variantes.length === 0) { res.status(500).json({ error: 'Error al generar variantes' }); return }
 
   res.json({ variantes })
+})
+
+// Evaluar dibujo manualmente (endpoint para testing)
+router.post('/evaluar-dibujo', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { instruccion, imagen } = req.body
+  if (!instruccion || !imagen) {
+    res.status(400).json({ error: 'instruccion e imagen requeridos' })
+    return
+  }
+  const resultado = await evaluarDibujoConIA(instruccion, imagen)
+  res.json(resultado)
 })
 
 export default router
