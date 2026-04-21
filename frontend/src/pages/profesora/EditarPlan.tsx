@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../lib/api'
-import type { Planificacion, Ejercicio, Materia, Tema } from '../../types'
+import type { Planificacion, Ejercicio, Materia, Tema, Sala } from '../../types'
 import FormSeleccionMultiple from '../../components/ejercicios/FormSeleccionMultiple'
 import FormMatematica from '../../components/ejercicios/FormMatematica'
 import FormCompletarTexto from '../../components/ejercicios/FormCompletarTexto'
@@ -22,7 +22,13 @@ export default function EditarPlan() {
   const navigate = useNavigate()
   const [plan, setPlan] = useState<Planificacion | null>(null)
   const [materias, setMaterias] = useState<Materia[]>([])
+  const [salas, setSalas] = useState<Sala[]>([])
   const [modal, setModal] = useState(false)
+  const [modalEditar, setModalEditar] = useState(false)
+  const [editForm, setEditForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+  const [editTemaIds, setEditTemaIds] = useState<number[]>([])
+  const [editCargando, setEditCargando] = useState(false)
+  const [editError, setEditError] = useState('')
   const [tipo, setTipo] = useState<TipoEjercicio | null>(null)
   const [titulo, setTitulo] = useState('')
   const [puntos, setPuntos] = useState(10)
@@ -40,12 +46,14 @@ export default function EditarPlan() {
   useEffect(() => { cargar() }, [id])
 
   async function cargar() {
-    const [p, m] = await Promise.all([
+    const [p, m, s] = await Promise.all([
       api.get(`/api/planificaciones/${id}`),
-      api.get('/api/materias')
+      api.get('/api/materias'),
+      api.get('/api/salas')
     ])
     setPlan(p.data)
     setMaterias(m.data)
+    setSalas(s.data)
   }
 
   function abrirModal() {
@@ -92,6 +100,38 @@ export default function EditarPlan() {
     await guardarConContenido(contenido)
   }
 
+  function abrirEditar() {
+    if (!plan) return
+    setEditForm({
+      titulo: plan.titulo,
+      salaId: String(plan.sala_id),
+      materiaId: String(plan.materia_id),
+      fecha: plan.fecha ? plan.fecha.split('T')[0] : ''
+    })
+    setEditTemaIds(plan.temas?.map(t => t.id) || [])
+    setEditError('')
+    setModalEditar(true)
+  }
+
+  async function guardarEdicion(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editForm.titulo.trim()) { setEditError('Escribe el título'); return }
+    setEditCargando(true)
+    try {
+      await api.put(`/api/planificaciones/${id}`, {
+        titulo: editForm.titulo,
+        salaId: Number(editForm.salaId),
+        materiaId: Number(editForm.materiaId),
+        fecha: editForm.fecha || null,
+        temaIds: editTemaIds
+      })
+      setModalEditar(false)
+      cargar()
+    } catch {
+      setEditError('Error al guardar')
+    } finally { setEditCargando(false) }
+  }
+
   async function eliminarEjercicio(ejercicioId: number) {
     await api.delete(`/api/planificaciones/${id}/ejercicios/${ejercicioId}`)
     cargar()
@@ -128,10 +168,16 @@ export default function EditarPlan() {
               )}
             </div>
           </div>
-          <button onClick={() => navigate(`/profesora/sesion/${id}`)}
-            className="bg-green-400 hover:bg-green-300 text-white font-bold px-4 py-2 rounded-xl text-sm cursor-pointer flex-shrink-0">
-            ▶ Iniciar clase
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={abrirEditar}
+              className="bg-white/20 hover:bg-white/30 text-white font-bold px-3 py-2 rounded-xl text-sm cursor-pointer">
+              Editar
+            </button>
+            <button onClick={() => navigate(`/profesora/sesion/${id}`)}
+              className="bg-green-400 hover:bg-green-300 text-white font-bold px-4 py-2 rounded-xl text-sm cursor-pointer">
+              ▶ Iniciar clase
+            </button>
+          </div>
         </div>
       </div>
 
@@ -185,7 +231,90 @@ export default function EditarPlan() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal editar planificación */}
+      {modalEditar && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>Editar planificación</h3>
+              <button onClick={() => setModalEditar(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl">×</button>
+            </div>
+            <form onSubmit={guardarEdicion} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Título</label>
+                <input type="text" value={editForm.titulo}
+                  onChange={e => setEditForm(f => ({ ...f, titulo: e.target.value }))}
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Sala</label>
+                <select value={editForm.salaId}
+                  onChange={e => setEditForm(f => ({ ...f, salaId: e.target.value }))}
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                  <option value="">Selecciona una sala</option>
+                  {salas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Materia</label>
+                <select value={editForm.materiaId}
+                  onChange={e => setEditForm(f => ({ ...f, materiaId: e.target.value }))}
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                  <option value="">Selecciona una materia</option>
+                  {materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Fecha (opcional)</label>
+                <input type="date" value={editForm.fecha}
+                  onChange={e => setEditForm(f => ({ ...f, fecha: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+              </div>
+
+              {/* Temas */}
+              {editForm.materiaId && (() => {
+                const temasMateria = materias.find(m => m.id === Number(editForm.materiaId))?.temas || []
+                return temasMateria.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">Temas de la clase</label>
+                    <div className="flex flex-wrap gap-2">
+                      {temasMateria.map(t => {
+                        const sel = editTemaIds.includes(t.id)
+                        return (
+                          <button key={t.id} type="button"
+                            onClick={() => setEditTemaIds(ids =>
+                              sel ? ids.filter(i => i !== t.id) : [...ids, t.id]
+                            )}
+                            className="px-3 py-1.5 rounded-full text-sm font-medium border-2 cursor-pointer transition-all"
+                            style={{
+                              borderColor: sel ? 'var(--primary)' : '#e5e7eb',
+                              background: sel ? '#f0efff' : 'white',
+                              color: sel ? 'var(--primary)' : '#6b7280'
+                            }}>
+                            {t.nombre}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null
+              })()}
+
+              {editError && <p className="text-red-500 text-sm">{editError}</p>}
+              <button type="submit" disabled={editCargando}
+                className="w-full py-3 rounded-xl font-bold text-white cursor-pointer"
+                style={{ background: editCargando ? '#a29bfe' : 'var(--primary)' }}>
+                {editCargando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal añadir ejercicio */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl my-4 flex flex-col max-h-[90vh]">

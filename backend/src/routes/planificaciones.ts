@@ -83,6 +83,40 @@ router.post('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Res
   res.status(201).json(plan)
 })
 
+// Editar planificación
+router.put('/:id', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { titulo, salaId, materiaId, fecha, temaIds } = req.body
+
+  // Verificar que existe y pertenece a la profesora
+  const existe = await db.query('SELECT id FROM planificaciones WHERE id = $1 AND profesora_id = $2', [req.params.id, req.usuario!.id])
+  if (existe.rows.length === 0) {
+    res.status(404).json({ error: 'Planificación no encontrada' })
+    return
+  }
+
+  await db.query(
+    `UPDATE planificaciones SET titulo = COALESCE($1, titulo), sala_id = COALESCE($2, sala_id),
+     materia_id = COALESCE($3, materia_id), fecha = $4
+     WHERE id = $5 AND profesora_id = $6`,
+    [titulo, salaId, materiaId, fecha || null, req.params.id, req.usuario!.id]
+  )
+
+  // Actualizar temas si se proporcionan
+  if (temaIds !== undefined) {
+    await db.query('DELETE FROM planificacion_temas WHERE planificacion_id = $1', [req.params.id])
+    if (temaIds && temaIds.length > 0) {
+      for (const temaId of temaIds) {
+        await db.query(
+          'INSERT INTO planificacion_temas (planificacion_id, tema_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [req.params.id, temaId]
+        )
+      }
+    }
+  }
+
+  res.json({ ok: true })
+})
+
 // Agregar ejercicio a planificación
 router.post('/:id/ejercicios', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const { titulo, tipo, contenido, puntos, temaId, orden } = req.body
