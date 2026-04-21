@@ -105,10 +105,16 @@ export async function evaluarDibujoConIA(
           },
           {
             type: 'text',
-            text: `Eres un profesor evaluando el dibujo de un niño de 8-12 años.
+            text: `Eres un profesor MUY generoso evaluando el dibujo de un niño de 8-12 años (3ro a 6to básico).
 La instrucción era: "${instruccion}"
-Evalúa si el dibujo cumple razonablemente con lo pedido. Sé generoso — si se nota el esfuerzo y se relaciona con el tema, es correcto.
-Responde SOLO con JSON: {"correcto": true/false, "comentario": "breve feedback positivo en español"}`
+
+IMPORTANTE: Los niños dibujan con el dedo en un tablet. Sus dibujos NO serán perfectos.
+- Si la instrucción pide un rectángulo y se ve algo con 4 lados que se reconoce como rectángulo, ES CORRECTO.
+- Si la instrucción pide un animal y se ve un intento reconocible de ese animal, ES CORRECTO.
+- Solo marca como incorrecto si el dibujo NO tiene NADA que ver con lo pedido (ej: pidió un triángulo y dibujó un garabato sin forma).
+- En caso de duda, marca como CORRECTO. Prioriza motivar al niño.
+
+Responde SOLO con JSON: {"correcto": true/false, "comentario": "breve feedback positivo y motivador en español"}`
           }
         ]
       }]

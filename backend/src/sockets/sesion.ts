@@ -292,7 +292,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
       })
     }
 
-    socket.emit('respuesta:confirmada', { puntosObtenidos, comentarioIA: comentarioIA || '' })
+    socket.emit('respuesta:confirmada', { puntosObtenidos, esCorrecta, comentarioIA: comentarioIA || '' })
   })
 
   // Profesora finaliza la sesión

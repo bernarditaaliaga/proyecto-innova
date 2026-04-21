@@ -105,9 +105,10 @@ export default function Aula() {
     })
 
     // Respuesta confirmada
-    socket.on('respuesta:confirmada', (data: { puntosObtenidos: number; comentarioIA?: string }) => {
+    socket.on('respuesta:confirmada', (data: { puntosObtenidos: number; esCorrecta?: boolean; comentarioIA?: string }) => {
       setPuntosObtenidos(data.puntosObtenidos)
       setPuntosTotal(prev => prev + data.puntosObtenidos)
+      if (data.esCorrecta !== undefined) setFueCorrecta(data.esCorrecta)
       if (data.comentarioIA) setComentarioIA(data.comentarioIA)
       setEstado('respondido')
     })
