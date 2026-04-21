@@ -4,10 +4,11 @@ import { verificarToken, soloProfesor, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
-// Get all planificaciones for calendar view (with dates)
+// Get all planificaciones for calendar view
 router.get('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   const resultado = await db.query(
-    `SELECT p.id, p.titulo, p.fecha, s.nombre AS sala, m.nombre AS materia, m.color AS materia_color,
+    `SELECT p.id, p.titulo, p.fecha, p.hora_inicio, p.duracion_minutos,
+            s.nombre AS sala, m.nombre AS materia, m.color AS materia_color,
             COUNT(e.id) AS total_ejercicios
      FROM planificaciones p
      JOIN salas s ON s.id = p.sala_id
@@ -15,18 +16,19 @@ router.get('/', verificarToken, soloProfesor, async (req: AuthRequest, res: Resp
      LEFT JOIN ejercicios e ON e.planificacion_id = p.id
      WHERE p.profesora_id = $1 AND p.fecha IS NOT NULL
      GROUP BY p.id, s.nombre, m.nombre, m.color
-     ORDER BY p.fecha`,
+     ORDER BY p.fecha, p.hora_inicio`,
     [req.usuario!.id]
   )
   res.json(resultado.rows)
 })
 
-// Update date of a planificacion
+// Update date/time of a planificacion
 router.put('/:id/fecha', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { fecha } = req.body
+  const { fecha, horaInicio, duracionMinutos } = req.body
   await db.query(
-    'UPDATE planificaciones SET fecha = $1 WHERE id = $2 AND profesora_id = $3',
-    [fecha || null, req.params.id, req.usuario!.id]
+    `UPDATE planificaciones SET fecha = $1, hora_inicio = $2, duracion_minutos = COALESCE($3, 45)
+     WHERE id = $4 AND profesora_id = $5`,
+    [fecha || null, horaInicio || null, duracionMinutos, req.params.id, req.usuario!.id]
   )
   res.json({ ok: true })
 })

@@ -9,7 +9,7 @@ export default function Planificaciones() {
   const [salas, setSalas] = useState<Sala[]>([])
   const [materias, setMaterias] = useState<Materia[]>([])
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+  const [form, setForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '', horaInicio: '', duracionMinutos: '45' })
   const [temaIdsSeleccionados, setTemaIdsSeleccionados] = useState<number[]>([])
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -56,10 +56,12 @@ export default function Planificaciones() {
         salaId: Number(form.salaId),
         materiaId: Number(form.materiaId),
         fecha: form.fecha || null,
+        horaInicio: form.horaInicio || null,
+        duracionMinutos: form.duracionMinutos ? Number(form.duracionMinutos) : 45,
         temaIds: temaIdsSeleccionados
       })
       setModal(false)
-      setForm({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+      setForm({ titulo: '', salaId: '', materiaId: '', fecha: '', horaInicio: '', duracionMinutos: '45' })
       setTemaIdsSeleccionados([])
       navigate(`/profesora/planificaciones/${data.id}`)
     } catch {
@@ -178,6 +180,24 @@ export default function Planificaciones() {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Fecha (opcional)</label>
                 <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Hora inicio</label>
+                  <input type="time" value={form.horaInicio} onChange={e => setForm(f => ({ ...f, horaInicio: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Duración (min)</label>
+                  <select value={form.duracionMinutos} onChange={e => setForm(f => ({ ...f, duracionMinutos: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">1 hora</option>
+                    <option value="90">1.5 horas</option>
+                    <option value="120">2 horas</option>
+                  </select>
+                </div>
               </div>
 
               {/* Temas de la clase */}

@@ -224,6 +224,18 @@ async function initDB() {
       )
     `)
 
+    // Agregar hora y duración a planificaciones
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'planificaciones' AND column_name = 'hora_inicio') THEN
+          ALTER TABLE planificaciones ADD COLUMN hora_inicio TIME;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'planificaciones' AND column_name = 'duracion_minutos') THEN
+          ALTER TABLE planificaciones ADD COLUMN duracion_minutos INTEGER DEFAULT 45;
+        END IF;
+      END $$
+    `)
+
     // Limpiar sesiones huérfanas
     const r = await db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE estado != 'finalizada'`)
     console.log(`Sesiones huérfanas cerradas: ${r.rowCount}`)

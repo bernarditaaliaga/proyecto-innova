@@ -25,7 +25,7 @@ export default function EditarPlan() {
   const [salas, setSalas] = useState<Sala[]>([])
   const [modal, setModal] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
-  const [editForm, setEditForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '' })
+  const [editForm, setEditForm] = useState({ titulo: '', salaId: '', materiaId: '', fecha: '', horaInicio: '', duracionMinutos: '45' })
   const [editTemaIds, setEditTemaIds] = useState<number[]>([])
   const [editCargando, setEditCargando] = useState(false)
   const [editError, setEditError] = useState('')
@@ -102,11 +102,14 @@ export default function EditarPlan() {
 
   function abrirEditar() {
     if (!plan) return
+    const p = plan as Planificacion & { hora_inicio?: string; duracion_minutos?: number }
     setEditForm({
       titulo: plan.titulo,
       salaId: String(plan.sala_id),
       materiaId: String(plan.materia_id),
-      fecha: plan.fecha ? plan.fecha.split('T')[0] : ''
+      fecha: plan.fecha ? plan.fecha.split('T')[0] : '',
+      horaInicio: p.hora_inicio ? p.hora_inicio.slice(0, 5) : '',
+      duracionMinutos: String(p.duracion_minutos || 45)
     })
     setEditTemaIds(plan.temas?.map(t => t.id) || [])
     setEditError('')
@@ -123,6 +126,8 @@ export default function EditarPlan() {
         salaId: Number(editForm.salaId),
         materiaId: Number(editForm.materiaId),
         fecha: editForm.fecha || null,
+        horaInicio: editForm.horaInicio || null,
+        duracionMinutos: editForm.duracionMinutos ? Number(editForm.duracionMinutos) : 45,
         temaIds: editTemaIds
       })
       setModalEditar(false)
@@ -272,6 +277,26 @@ export default function EditarPlan() {
                 <input type="date" value={editForm.fecha}
                   onChange={e => setEditForm(f => ({ ...f, fecha: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Hora inicio</label>
+                  <input type="time" value={editForm.horaInicio}
+                    onChange={e => setEditForm(f => ({ ...f, horaInicio: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Duración (min)</label>
+                  <select value={editForm.duracionMinutos}
+                    onChange={e => setEditForm(f => ({ ...f, duracionMinutos: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-purple-400 text-gray-700">
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">1 hora</option>
+                    <option value="90">1.5 horas</option>
+                    <option value="120">2 horas</option>
+                  </select>
+                </div>
               </div>
 
               {/* Temas */}
