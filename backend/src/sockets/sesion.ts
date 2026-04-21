@@ -23,6 +23,7 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
        WHERE s.planificacion_id IN (
          SELECT id FROM planificaciones WHERE sala_id = $1
        ) AND s.estado != 'finalizada'
+         AND s.iniciada_en > NOW() - INTERVAL '4 hours'
        ORDER BY s.iniciada_en DESC LIMIT 1`,
       [data.salaId]
     )
