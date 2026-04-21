@@ -62,6 +62,13 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     if (sesion.rows.length > 0) {
       const row = sesion.rows[0]
 
+      // Verificar si ya marcó asistencia
+      const asistencia = await db.query(
+        'SELECT presente FROM asistencia WHERE sesion_id = $1 AND alumno_id = $2',
+        [row.id, data.alumnoId]
+      )
+      const yaMarcoAsistencia = asistencia.rows[0]?.presente || false
+
       if (row.ejercicio_activo_id && row.tipo) {
         // Buscar variante personalizada del alumno
         const variante = await db.query(
@@ -86,13 +93,15 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
             contenido: variante.rows[0]?.contenido || row.contenido
           },
           yaRespondio: yaRespondio.rows.length > 0,
-          puntosYaObtenidos: yaRespondio.rows[0]?.puntos_obtenidos ?? 0
+          puntosYaObtenidos: yaRespondio.rows[0]?.puntos_obtenidos ?? 0,
+          yaMarcoAsistencia
         })
       } else {
         socket.emit('sesion:estado', {
           sesionId: row.id,
           materia: row.materia || '',
-          profesora: row.profesora || ''
+          profesora: row.profesora || '',
+          yaMarcoAsistencia
         })
       }
     } else {
@@ -137,6 +146,19 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     const salaId = info.rows[0]?.sala_id
 
     if (salaId) {
+      // Crear registros de asistencia para todos los alumnos de la sala
+      const alumnosSala = await db.query(
+        'SELECT alumno_id FROM alumno_salas WHERE sala_id = $1',
+        [salaId]
+      )
+      for (const al of alumnosSala.rows) {
+        await db.query(
+          `INSERT INTO asistencia (sesion_id, alumno_id, presente) VALUES ($1, $2, false)
+           ON CONFLICT (sesion_id, alumno_id) DO NOTHING`,
+          [sesion.id, al.alumno_id]
+        )
+      }
+
       console.log(`[Socket] Profesora inicia sesión en sala:${salaId}, sesionId:${sesion.id}`)
       socket.join(`sala:${salaId}`)
       const room = io.sockets.adapter.rooms.get(`sala:${salaId}`)
@@ -293,6 +315,32 @@ export function registrarEventosSesion(io: Server, socket: Socket) {
     }
 
     socket.emit('respuesta:confirmada', { puntosObtenidos, esCorrecta, comentarioIA: comentarioIA || '' })
+  })
+
+  // Alumno marca asistencia
+  socket.on('alumno:marcar_asistencia', async (data: { sesionId: number; alumnoId: number }) => {
+    await db.query(
+      `UPDATE asistencia SET presente = true, marcado_en = NOW()
+       WHERE sesion_id = $1 AND alumno_id = $2`,
+      [data.sesionId, data.alumnoId]
+    )
+    // Notify teacher
+    const alumno = await db.query(
+      `SELECT a.nombre, a.apellido, als.sala_id
+       FROM alumnos a
+       LEFT JOIN alumno_salas als ON als.alumno_id = a.id
+       WHERE a.id = $1 LIMIT 1`,
+      [data.alumnoId]
+    )
+    const a = alumno.rows[0]
+    if (a) {
+      io.to(`sala:${a.sala_id}`).emit('asistencia:actualizada', {
+        alumnoId: data.alumnoId,
+        nombre: `${a.nombre} ${a.apellido}`,
+        presente: true
+      })
+    }
+    socket.emit('asistencia:confirmada')
   })
 
   // Profesora finaliza la sesión

@@ -27,6 +27,7 @@ export default function Sesion() {
   const [respuestas, setRespuestas] = useState<RespuestaAlumno[]>([])
   const [totalAlumnos, setTotalAlumnos] = useState(0)
   const [confirmFinalizar, setConfirmFinalizar] = useState(false)
+  const [asistencia, setAsistencia] = useState<{ alumnoId: number; nombre: string; presente: boolean }[]>([])
   const ejercicioActivoRef = useRef<Ejercicio | null>(null)
 
   // Crear ejercicio en vivo
@@ -64,6 +65,14 @@ export default function Sesion() {
       })
     })
 
+    socket.on('asistencia:actualizada', (data: { alumnoId: number; nombre: string; presente: boolean }) => {
+      setAsistencia(prev => {
+        const existe = prev.find(a => a.alumnoId === data.alumnoId)
+        if (existe) return prev.map(a => a.alumnoId === data.alumnoId ? data : a)
+        return [...prev, data]
+      })
+    })
+
     // Reconectar la profesora al room de la sala si hay sesión activa
     const reconectar = () => {
       if (plan && sesionId) {
@@ -76,6 +85,7 @@ export default function Sesion() {
     return () => {
       socket.off('sesion:creada')
       socket.off('respuesta:alumno')
+      socket.off('asistencia:actualizada')
       socket.off('connect', reconectar)
     }
   }, [socket, plan, sesionId])
@@ -308,11 +318,33 @@ export default function Sesion() {
 
               {/* Estado */}
               {estado === 'esperando' && !ejercicioActivo && (
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
-                  <div className="text-4xl mb-3">⏳</div>
-                  <p className="text-gray-500 font-medium">Alumnos en pantalla de espera</p>
-                  <p className="text-sm text-gray-400 mt-1">Selecciona un ejercicio de la izquierda para lanzarlo</p>
-                </div>
+                <>
+                  <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+                    <div className="text-4xl mb-3">⏳</div>
+                    <p className="text-gray-500 font-medium">Alumnos en pantalla de espera</p>
+                    <p className="text-sm text-gray-400 mt-1">Selecciona un ejercicio de la izquierda para lanzarlo</p>
+                  </div>
+                  {/* Asistencia */}
+                  {asistencia.length > 0 && (
+                    <div className="bg-white rounded-2xl p-5 shadow-sm mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold" style={{ color: 'var(--text)' }}>Asistencia</h4>
+                        <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                          {asistencia.filter(a => a.presente).length} / {totalAlumnos}
+                        </span>
+                      </div>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {asistencia.map(a => (
+                          <div key={a.alumnoId} className="flex items-center gap-2 text-sm">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${a.presente ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <span className="text-gray-600 flex-1">{a.nombre}</span>
+                            <span className="text-xs text-gray-400">{a.presente ? '✅' : 'Ausente'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {estado === 'ejercicio_activo' && ejercicioActivo && (

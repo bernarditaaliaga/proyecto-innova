@@ -364,6 +364,53 @@ router.get('/alumno/:alumnoId', verificarToken, soloProfesor, async (req: AuthRe
   })
 })
 
+// ─── Asistencia de una sesión (vista en vivo) ────────────────────────────────
+router.get('/asistencia/sesion/:sesionId', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const resultado = await db.query(
+    `SELECT a.id AS alumno_id, a.nombre || ' ' || a.apellido AS alumno,
+            asi.presente, asi.marcado_en
+     FROM asistencia asi
+     JOIN alumnos a ON a.id = asi.alumno_id
+     WHERE asi.sesion_id = $1
+     ORDER BY a.apellido, a.nombre`,
+    [req.params.sesionId]
+  )
+  res.json(resultado.rows)
+})
+
+// ─── Asistencia de una sala ──────────────────────────────────────────────────
+router.get('/asistencia/:salaId', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { salaId } = req.params
+  const desde = fechaDesde(String(req.query.periodo || 'mes'))
+
+  const resultado = await db.query(
+    `SELECT
+       a.id AS alumno_id,
+       a.nombre || ' ' || a.apellido AS alumno,
+       COUNT(asi.id) AS total_clases,
+       SUM(CASE WHEN asi.presente THEN 1 ELSE 0 END) AS clases_presentes
+     FROM alumnos a
+     JOIN alumno_salas als ON als.alumno_id = a.id AND als.sala_id = $1
+     LEFT JOIN asistencia asi ON asi.alumno_id = a.id
+     LEFT JOIN sesiones s ON s.id = asi.sesion_id AND s.iniciada_en >= $2
+     LEFT JOIN planificaciones p ON p.id = s.planificacion_id AND p.sala_id = $1
+     WHERE (p.sala_id = $1 OR asi.id IS NULL)
+     GROUP BY a.id, a.nombre, a.apellido
+     ORDER BY a.apellido, a.nombre`,
+    [salaId, desde]
+  )
+
+  res.json(resultado.rows.map((r: any) => ({
+    alumnoId: r.alumno_id,
+    alumno: r.alumno,
+    totalClases: Number(r.total_clases),
+    clasesPresentes: Number(r.clases_presentes),
+    porcentaje: Number(r.total_clases) > 0
+      ? Math.round((Number(r.clases_presentes) / Number(r.total_clases)) * 100)
+      : 0
+  })))
+})
+
 // ─── Enviar reporte por email a apoderados ──────────────────────────────────
 router.post('/reporte/:salaId', verificarToken, soloProfesor, async (req: AuthRequest, res: Response): Promise<void> => {
   if (!process.env.RESEND_API_KEY) {

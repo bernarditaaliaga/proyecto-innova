@@ -26,6 +26,13 @@ export default function Dashboard() {
       descripcion: 'Rendimiento de tus alumnos',
       ruta: '/profesora/metricas',
       color: '#FDCB6E'
+    },
+    {
+      icono: '📅',
+      titulo: 'Calendario',
+      descripcion: 'Organiza tu agenda de clases',
+      ruta: '/profesora/calendario',
+      color: '#E17055'
     }
   ]
 

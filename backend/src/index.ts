@@ -12,6 +12,7 @@ import planificacionesRoutes from './routes/planificaciones'
 import iaRoutes from './routes/ia'
 import metricasRoutes from './routes/metricas'
 import uploadRoutes from './routes/upload'
+import calendarioRoutes from './routes/calendario'
 import { registrarEventosSesion } from './sockets/sesion'
 
 dotenv.config()
@@ -80,6 +81,7 @@ app.use('/api/planificaciones', planificacionesRoutes)
 app.use('/api/ia', iaRoutes)
 app.use('/api/metricas', metricasRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/calendario', calendarioRoutes)
 
 // Inicialización de BD al arrancar
 import { db } from './db'
@@ -209,6 +211,18 @@ async function initDB() {
         END IF;
       END $$
     `).catch(() => {})
+
+    // Tabla de asistencia
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS asistencia (
+        id SERIAL PRIMARY KEY,
+        sesion_id INTEGER REFERENCES sesiones(id) ON DELETE CASCADE,
+        alumno_id INTEGER REFERENCES alumnos(id) ON DELETE CASCADE,
+        presente BOOLEAN DEFAULT FALSE,
+        marcado_en TIMESTAMP,
+        UNIQUE(sesion_id, alumno_id)
+      )
+    `)
 
     // Limpiar sesiones huérfanas
     const r = await db.query(`UPDATE sesiones SET estado = 'finalizada', finalizada_en = NOW() WHERE estado != 'finalizada'`)

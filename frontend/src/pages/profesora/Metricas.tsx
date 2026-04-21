@@ -4,7 +4,7 @@ import { api } from '../../lib/api'
 import type { Sala } from '../../types'
 
 type Periodo = 'semana' | 'mes' | 'semestre'
-type Vista = 'resumen' | 'tabla' | 'materia' | 'alumno'
+type Vista = 'resumen' | 'tabla' | 'materia' | 'alumno' | 'asistencia'
 
 interface MateriaStats {
   id: number; nombre: string; color: string
@@ -64,6 +64,7 @@ export default function Metricas() {
   const [clase, setClase] = useState<AlumnoClase[]>([])
   const [materiaDetalle, setMateriaDetalle] = useState<{ materia: ResumenMateria; alumnos: AlumnoMateria[] } | null>(null)
   const [perfil, setPerfil] = useState<PerfilAlumno | null>(null)
+  const [asistenciaData, setAsistenciaData] = useState<{alumnoId: number; alumno: string; totalClases: number; clasesPresentes: number; porcentaje: number}[]>([])
 
   useEffect(() => {
     api.get('/api/salas').then(r => {
@@ -81,6 +82,7 @@ export default function Metricas() {
       setPerfil(null)
       cargarResumen()
       cargarClase()
+      cargarAsistencia(salaId)
     }
   }, [salaId, periodo])
 
@@ -110,6 +112,13 @@ export default function Metricas() {
       console.error('[Metricas] Error cargando clase:', err)
       setClase([])
     } finally { setCargando(false) }
+  }
+
+  async function cargarAsistencia(sId: number) {
+    try {
+      const { data } = await api.get(`/api/metricas/asistencia/${sId}?periodo=${periodo}`)
+      setAsistenciaData(data)
+    } catch { setAsistenciaData([]) }
   }
 
   async function cargarDetalleMateria(materia: ResumenMateria) {
@@ -156,6 +165,7 @@ export default function Metricas() {
         <button onClick={() => {
           if (vista === 'alumno') { setPerfil(null); setVista(materiaDetalle ? 'materia' : 'resumen') }
           else if (vista === 'materia') { setMateriaDetalle(null); setVista('resumen') }
+          else if (vista === 'asistencia') { setVista('resumen') }
           else navigate('/profesora')
         }} className="text-white cursor-pointer text-xl">←</button>
         <h1 className="text-xl font-bold text-white flex-1">
@@ -187,6 +197,19 @@ export default function Metricas() {
                   color: periodo === p.valor ? 'white' : 'var(--muted)'
                 }}>
                 {p.etiqueta}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {(['resumen', 'asistencia'] as const).map(v => (
+              <button key={v} onClick={() => setVista(v)}
+                className="px-4 py-2 text-sm font-medium cursor-pointer transition-all capitalize"
+                style={{
+                  background: vista === v ? 'var(--primary)' : 'white',
+                  color: vista === v ? 'white' : 'var(--muted)'
+                }}>
+                {v === 'resumen' ? 'Resumen' : 'Asistencia'}
               </button>
             ))}
           </div>
@@ -399,6 +422,42 @@ export default function Metricas() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* ══════ VISTA ASISTENCIA ══════ */}
+            {vista === 'asistencia' && (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-5 py-3 text-sm font-semibold text-gray-500">Alumno</th>
+                      <th className="text-center px-3 py-3 text-sm font-semibold text-gray-500">Asistencia</th>
+                      <th className="text-center px-3 py-3 text-sm font-semibold text-gray-500">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asistenciaData.map(a => (
+                      <tr key={a.alumnoId} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-5 py-3 text-sm font-medium text-gray-700">{a.alumno}</td>
+                        <td className="text-center px-3 py-3 text-sm text-gray-600">{a.clasesPresentes} / {a.totalClases}</td>
+                        <td className="text-center px-3 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{
+                                width: `${a.porcentaje}%`,
+                                background: a.porcentaje >= 80 ? '#00B894' : a.porcentaje >= 50 ? '#FDCB6E' : '#E17055'
+                              }} />
+                            </div>
+                            <span className="text-xs font-bold" style={{
+                              color: a.porcentaje >= 80 ? '#00B894' : a.porcentaje >= 50 ? '#FDCB6E' : '#E17055'
+                            }}>{a.porcentaje}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 

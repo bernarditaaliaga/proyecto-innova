@@ -12,6 +12,7 @@ export default function Aula() {
   const [estado, setEstado] = useState<EstadoAula>('metricas')
   const [ejercicio, setEjercicio] = useState<Ejercicio | null>(null)
   const [sesionId, setSesionId] = useState<number | null>(null)
+  const [yaMarcoAsistencia, setYaMarcoAsistencia] = useState(false)
   const [respuesta, setRespuesta] = useState<string | number | null>(null)
   const [fueCorrecta, setFueCorrecta] = useState<boolean>(true)
   const [puntosObtenidos, setPuntosObtenidos] = useState<number | null>(null)
@@ -51,6 +52,7 @@ export default function Aula() {
       ejercicio?: Ejercicio
       yaRespondio?: boolean
       puntosYaObtenidos?: number
+      yaMarcoAsistencia?: boolean
     }) => {
       setSesionId(data.sesionId)
       setClaseInfo({ materia: data.materia || '', profesora: data.profesora || '' })
@@ -67,6 +69,7 @@ export default function Aula() {
       } else {
         setEstado('en_clase')
       }
+      if (data.yaMarcoAsistencia) setYaMarcoAsistencia(true)
     })
 
     // Profesora inicia clase
@@ -75,6 +78,7 @@ export default function Aula() {
       setPuntosTotal(0)
       setClaseInfo({ materia: data.materia || '', profesora: data.profesora || '' })
       setEstado('en_clase')
+      setYaMarcoAsistencia(false)
     })
 
     // Profesora lanza ejercicio
@@ -104,6 +108,11 @@ export default function Aula() {
       setClaseInfo(null)
     })
 
+    // Asistencia confirmada
+    socket.on('asistencia:confirmada', () => {
+      setYaMarcoAsistencia(true)
+    })
+
     // Respuesta confirmada
     socket.on('respuesta:confirmada', (data: { puntosObtenidos: number; esCorrecta?: boolean; comentarioIA?: string }) => {
       setPuntosObtenidos(data.puntosObtenidos)
@@ -121,9 +130,15 @@ export default function Aula() {
       socket.off('ejercicio:nuevo')
       socket.off('ejercicio:cerrado')
       socket.off('sesion:finalizada')
+      socket.off('asistencia:confirmada')
       socket.off('respuesta:confirmada')
     }
   }, [socket, usuario])
+
+  function marcarAsistencia() {
+    if (!socket || !sesionId || !usuario) return
+    socket.emit('alumno:marcar_asistencia', { sesionId, alumnoId: usuario.id })
+  }
 
   function enviarRespuesta(contenido: unknown, esCorrecta: boolean, extra?: Record<string, unknown>) {
     if (!socket || !ejercicio || !sesionId || !usuario) return
@@ -219,6 +234,16 @@ export default function Aula() {
           <p className="text-green-100 text-lg mb-8">
             Prof. {claseInfo?.profesora || ''}
           </p>
+          {!yaMarcoAsistencia ? (
+            <button onClick={marcarAsistencia}
+              className="bg-white/30 hover:bg-white/40 text-white font-bold text-lg px-8 py-4 rounded-2xl cursor-pointer mb-4 transition-all">
+              {'✋ ¡Aquí estoy!'}
+            </button>
+          ) : (
+            <div className="bg-white/20 rounded-2xl px-6 py-3 mb-4">
+              <p className="text-white font-medium">{'✅ Asistencia marcada'}</p>
+            </div>
+          )}
           <div className="bg-white/20 backdrop-blur rounded-2xl px-8 py-4">
             <p className="text-white text-lg font-medium">Clase en curso</p>
             <div className="flex justify-center gap-2 mt-3">
